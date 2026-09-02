@@ -185,19 +185,19 @@ export const getLeads = cache(async (filters: GetLeadsFilters = {}): Promise<Lea
           .select("id, owner_id, name, phone, whatsapp, email, location, created_at, updated_at"),
         supabase
           .from("quotations")
-          .select("id, owner_id, lead_id, quotation_number, quotation_name, quotation_date, valid_until, event_dates, event_types, coverage_details, total_amount, discount_amount, final_amount, status, notes, created_at, updated_at"),
+          .select("id, owner_id, lead_id, quotation_number, amount, valid_until, status, sent_at, viewed_at, accepted_at, rejected_at, rejection_reason, rejection_reason_other, notes, created_at, updated_at"),
         supabase
           .from("bookings")
-          .select("id, owner_id, lead_id, client_id, quotation_id, booking_status, booking_date, total_amount, advance_amount, remaining_amount, advance_paid_at, final_payment_due_date, notes, created_at, updated_at"),
+          .select("id, owner_id, lead_id, client_id, booking_status, booking_date, confirmed_at, total_amount, advance_amount, advance_due_date, advance_paid_at, remaining_amount, final_payment_due_date, final_payment_paid_at, notes, created_at, updated_at"),
         supabase
           .from("follow_ups")
-          .select("id, owner_id, lead_id, scheduled_at, completed_at, contact_method, notes, outcome, created_at, updated_at"),
+          .select("id, owner_id, lead_id, scheduled_at, completed_at, contact_method, notes, client_response, created_at, updated_at"),
         supabase
           .from("communications")
-          .select("id, owner_id, lead_id, client_id, type, direction, content, metadata, created_at"),
+          .select("id, owner_id, lead_id, contact_method, direction, message, client_response, created_at"),
         supabase
           .from("activities")
-          .select("id, owner_id, lead_id, activity_type, title, description, created_at")
+          .select("id, owner_id, lead_id, client_id, activity_type, title, description, contact_method, client_response, metadata, created_at")
           .order("created_at", { ascending: false }),
         supabase
           .from("notes")
@@ -401,11 +401,11 @@ export const getLeadById = cache(async (id: string): Promise<LeadWithDetails | n
           { data: aData },
           { data: nData },
         ] = await Promise.all([
-          supabase.from("quotations").select("id, owner_id, lead_id, quotation_number, quotation_name, quotation_date, valid_until, event_dates, event_types, coverage_details, total_amount, discount_amount, final_amount, status, notes, created_at, updated_at").eq("lead_id", dbLead.id),
-          supabase.from("bookings").select("id, owner_id, lead_id, client_id, quotation_id, booking_status, booking_date, total_amount, advance_amount, remaining_amount, advance_paid_at, final_payment_due_date, notes, created_at, updated_at").eq("lead_id", dbLead.id),
-          supabase.from("follow_ups").select("id, owner_id, lead_id, scheduled_at, completed_at, contact_method, notes, outcome, created_at, updated_at").eq("lead_id", dbLead.id),
-          supabase.from("communications").select("id, owner_id, lead_id, client_id, type, direction, content, metadata, created_at").eq("lead_id", dbLead.id),
-          supabase.from("activities").select("id, owner_id, lead_id, activity_type, title, description, created_at").eq("lead_id", dbLead.id).order("created_at", { ascending: false }),
+          supabase.from("quotations").select("id, owner_id, lead_id, quotation_number, amount, valid_until, status, sent_at, viewed_at, accepted_at, rejected_at, rejection_reason, rejection_reason_other, notes, created_at, updated_at").eq("lead_id", dbLead.id),
+          supabase.from("bookings").select("id, owner_id, lead_id, client_id, booking_status, booking_date, confirmed_at, total_amount, advance_amount, advance_due_date, advance_paid_at, remaining_amount, final_payment_due_date, final_payment_paid_at, notes, created_at, updated_at").eq("lead_id", dbLead.id),
+          supabase.from("follow_ups").select("id, owner_id, lead_id, scheduled_at, completed_at, contact_method, notes, client_response, created_at, updated_at").eq("lead_id", dbLead.id),
+          supabase.from("communications").select("id, owner_id, lead_id, contact_method, direction, message, client_response, created_at").eq("lead_id", dbLead.id),
+          supabase.from("activities").select("id, owner_id, lead_id, client_id, activity_type, title, description, contact_method, client_response, metadata, created_at").eq("lead_id", dbLead.id).order("created_at", { ascending: false }),
           supabase.from("notes").select("id, owner_id, lead_id, content, created_at, updated_at").eq("lead_id", dbLead.id).order("created_at", { ascending: false }),
         ]);
 
@@ -487,7 +487,7 @@ export const getFollowUps = cache(async (
       const supabase = await createServerSupabase();
       const { data } = await supabase
         .from("follow_ups")
-        .select("id, owner_id, lead_id, scheduled_at, completed_at, contact_method, notes, outcome, created_at, updated_at");
+        .select("id, owner_id, lead_id, scheduled_at, completed_at, contact_method, notes, client_response, created_at, updated_at");
       if (data) rawList = data as any[];
     } catch {}
   }
@@ -531,7 +531,7 @@ export const getQuotations = cache(async (statusFilter?: string): Promise<Quotat
       const supabase = await createServerSupabase();
       const { data } = await supabase
         .from("quotations")
-        .select("id, owner_id, lead_id, quotation_number, quotation_name, quotation_date, valid_until, event_dates, event_types, coverage_details, total_amount, discount_amount, final_amount, status, notes, created_at, updated_at");
+        .select("id, owner_id, lead_id, quotation_number, amount, valid_until, status, sent_at, viewed_at, accepted_at, rejected_at, rejection_reason, rejection_reason_other, notes, created_at, updated_at");
       if (data) rawList = data as any[];
     } catch {}
   }
@@ -565,10 +565,10 @@ export const getBookings = cache(async (): Promise<Booking[]> => {
       const [{ data: bData }, { data: pData }] = await Promise.all([
         supabase
           .from("bookings")
-          .select("id, owner_id, lead_id, client_id, quotation_id, booking_status, booking_date, total_amount, advance_amount, remaining_amount, advance_paid_at, final_payment_due_date, notes, created_at, updated_at"),
+          .select("id, owner_id, lead_id, client_id, booking_status, booking_date, confirmed_at, total_amount, advance_amount, advance_due_date, advance_paid_at, remaining_amount, final_payment_due_date, final_payment_paid_at, notes, created_at, updated_at"),
         supabase
           .from("payments")
-          .select("id, owner_id, booking_id, lead_id, amount, payment_type, payment_method, payment_date, reference_number, notes, status, created_at, updated_at"),
+          .select("id, owner_id, booking_id, amount, payment_type, payment_method, payment_date, reference, notes, created_at"),
       ]);
       if (bData) rawBookings = bData as any[];
       if (pData) rawPayments = pData as any[];
@@ -604,7 +604,7 @@ export const getPayments = cache(async (): Promise<Payment[]> => {
       const supabase = await createServerSupabase();
       const { data } = await supabase
         .from("payments")
-        .select("id, owner_id, booking_id, lead_id, amount, payment_type, payment_method, payment_date, reference_number, notes, status, created_at, updated_at");
+        .select("id, owner_id, booking_id, amount, payment_type, payment_method, payment_date, reference, notes, created_at");
       if (data) rawPayments = data as any[];
     } catch {}
   }
@@ -629,7 +629,7 @@ export const getEvents = cache(async (status?: string): Promise<CRMEvent[]> => {
       const supabase = await createServerSupabase();
       const { data } = await supabase
         .from("events")
-        .select("id, owner_id, lead_id, client_id, title, event_type, event_date, start_time, end_time, location, notes, status, created_at, updated_at");
+        .select("id, owner_id, lead_id, client_id, event_name, event_type, event_date, start_time, end_time, location, notes, status, created_at, updated_at");
       if (data) rawEvents = data as any[];
     } catch {}
   }
