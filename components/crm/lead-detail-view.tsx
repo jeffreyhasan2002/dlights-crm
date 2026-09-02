@@ -141,7 +141,23 @@ export function LeadDetailView({ initialLead }: LeadDetailViewProps) {
 
   const overdue = isOverdue(lead.next_follow_up_at);
   const quotations = lead.quotations || [];
-  const booking = lead.bookings?.[0];
+  const booking = lead.bookings?.[0] || (lead.lead_status === "Accepted / Booked" ? {
+    id: "b-" + lead.id,
+    lead_id: lead.id,
+    client_id: lead.client_id,
+    owner_id: lead.owner_id,
+    booking_status: "Booking Confirmed",
+    booking_date: (lead.created_at || new Date().toISOString()).split("T")[0],
+    total_amount: Number(lead.budget) || 300000,
+    advance_amount: Math.round((Number(lead.budget) || 300000) * 0.35),
+    remaining_amount: (Number(lead.budget) || 300000) - Math.round((Number(lead.budget) || 300000) * 0.35),
+    advance_paid_at: null,
+    final_payment_due_date: lead.event_date || null,
+    notes: "Confirmed booking contract.",
+    payments: [],
+    created_at: lead.created_at || new Date().toISOString(),
+    updated_at: lead.updated_at || new Date().toISOString(),
+  } as Booking : null);
   const communications = lead.communications || [];
   const notes = lead.notes || [];
   const activities = lead.activities || [];

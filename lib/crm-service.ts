@@ -206,12 +206,36 @@ export async function getLeads(filters: GetLeadsFilters = {}): Promise<LeadWithD
         updated_at: lead.updated_at,
       };
 
-    const leadQuotations = quotationsData.filter((q) => q.lead_id === lead.id);
-    const leadBookings = bookingsData.filter((b) => b.lead_id === lead.id);
+    let leadQuotations = quotationsData.filter((q) => q.lead_id === lead.id);
+    let leadBookings = bookingsData.filter((b) => b.lead_id === lead.id);
     const leadFollowUps = followUpsData.filter((f) => f.lead_id === lead.id);
     const leadCommunications = communicationsData.filter((c) => c.lead_id === lead.id);
     const leadActivities = activitiesData.filter((a) => a.lead_id === lead.id);
     const leadNotes = notesData.filter((n) => n.lead_id === lead.id);
+
+    if (lead.lead_status === "Accepted / Booked" && leadBookings.length === 0) {
+      const totalAmount = Number(lead.budget) || 300000;
+      const advanceAmount = Math.round(totalAmount * 0.35);
+      const remainingAmount = totalAmount - advanceAmount;
+      leadBookings = [
+        {
+          id: "b-" + lead.id,
+          lead_id: lead.id,
+          client_id: lead.client_id,
+          owner_id: lead.owner_id,
+          booking_status: "Booking Confirmed",
+          booking_date: (lead.created_at || new Date().toISOString()).split("T")[0],
+          total_amount: totalAmount,
+          advance_amount: advanceAmount,
+          remaining_amount: remainingAmount,
+          advance_paid_at: null,
+          final_payment_due_date: lead.event_date || null,
+          notes: "Confirmed booking contract.",
+          created_at: lead.created_at || new Date().toISOString(),
+          updated_at: lead.updated_at || new Date().toISOString(),
+        },
+      ];
+    }
 
     return {
       ...lead,
@@ -299,12 +323,37 @@ export async function getLeadById(id: string): Promise<LeadWithDetails | null> {
           supabase.from("notes").select("*").eq("lead_id", dbLead.id).order("created_at", { ascending: false }),
         ]);
 
+        let resolvedBookings = bData || [];
+        if (dbLead.lead_status === "Accepted / Booked" && resolvedBookings.length === 0) {
+          const totalAmount = Number(dbLead.budget) || 300000;
+          const advanceAmount = Math.round(totalAmount * 0.35);
+          const remainingAmount = totalAmount - advanceAmount;
+          resolvedBookings = [
+            {
+              id: "b-" + dbLead.id,
+              lead_id: dbLead.id,
+              client_id: dbLead.client_id,
+              owner_id: dbLead.owner_id,
+              booking_status: "Booking Confirmed",
+              booking_date: (dbLead.created_at || new Date().toISOString()).split("T")[0],
+              total_amount: totalAmount,
+              advance_amount: advanceAmount,
+              remaining_amount: remainingAmount,
+              advance_paid_at: null,
+              final_payment_due_date: dbLead.event_date || null,
+              notes: "Confirmed booking contract.",
+              created_at: dbLead.created_at || new Date().toISOString(),
+              updated_at: dbLead.updated_at || new Date().toISOString(),
+            },
+          ];
+        }
+
         return {
           ...dbLead,
           source: dbLead.source || "Website",
           client,
           quotations: qData || [],
-          bookings: bData || [],
+          bookings: resolvedBookings,
           follow_ups: fData || [],
           communications: comData || [],
           activities: aData || [],
@@ -699,6 +748,85 @@ export async function updateContactStatusAction(leadId: string, status: ContactS
   return { success: true };
 }
 
+export async function ensureBookingForLead(leadId: string): Promise<Booking | null> {
+  const existingMem = memoryBookings.find((b) => b.lead_id === leadId);
+  if (existingMem) return existingMem;
+
+  const lead = memoryLeads.find((l) => l.id === leadId);
+  const now = new Date().toISOString();
+
+  const live = await isSupabaseLive();
+  if (live) {
+    try {
+      const supabase = await createServerSupabase();
+      const { data: dbBooking } = await supabase.from("bookings").select("*").eq("lead_id", leadId).maybeSingle();
+      if (dbBooking) {
+        memoryBookings.unshift(dbBooking);
+        return dbBooking;
+      }
+
+      const { data: dbLead } = await supabase.from("leads").select("*").eq("id", leadId).maybeSingle();
+      if (dbLead) {
+        const ownerId = await getAuthenticatedOwnerId();
+        const totalAmount = Number(dbLead.budget) || 300000;
+        const advanceAmount = Math.round(totalAmount * 0.35);
+        const remainingAmount = totalAmount - advanceAmount;
+
+        const { data: newDbBooking, error } = await supabase
+          .from("bookings")
+          .insert({
+            lead_id: dbLead.id,
+            client_id: dbLead.client_id,
+            owner_id: ownerId,
+            booking_status: "Booking Confirmed",
+            booking_date: now.split("T")[0],
+            total_amount: totalAmount,
+            advance_amount: advanceAmount,
+            remaining_amount: remainingAmount,
+            advance_paid_at: null,
+            final_payment_due_date: dbLead.event_date || null,
+            notes: "Confirmed booking agreement.",
+          })
+          .select()
+          .single();
+
+        if (newDbBooking) {
+          memoryBookings.unshift(newDbBooking);
+          return newDbBooking;
+        }
+      }
+    } catch (err) {
+      console.error("Error creating booking in Supabase:", err);
+    }
+  }
+
+  if (lead) {
+    const totalAmount = Number(lead.budget) || 300000;
+    const advanceAmount = Math.round(totalAmount * 0.35);
+    const remainingAmount = totalAmount - advanceAmount;
+    const memBooking: Booking = {
+      id: "b-" + Date.now(),
+      lead_id: lead.id,
+      client_id: lead.client_id,
+      owner_id: memoryProfile.id,
+      booking_status: "Booking Confirmed",
+      booking_date: now.split("T")[0],
+      total_amount: totalAmount,
+      advance_amount: advanceAmount,
+      remaining_amount: remainingAmount,
+      advance_paid_at: null,
+      final_payment_due_date: lead.event_date || null,
+      notes: "Confirmed booking agreement.",
+      created_at: now,
+      updated_at: now,
+    };
+    memoryBookings.unshift(memBooking);
+    return memBooking;
+  }
+
+  return null;
+}
+
 export async function updateLeadStatusAction(leadId: string, status: LeadStatus) {
   const lead = memoryLeads.find((l) => l.id === leadId);
   if (lead) {
@@ -716,6 +844,10 @@ export async function updateLeadStatusAction(leadId: string, status: LeadStatus)
     created_at: new Date().toISOString(),
   };
   memoryActivities.unshift(newActivity);
+
+  if (status === "Accepted / Booked") {
+    await ensureBookingForLead(leadId);
+  }
 
   const live = await isSupabaseLive();
   if (live) {
@@ -1107,37 +1239,58 @@ export async function createQuotationAction(data: {
 }
 
 export async function recordPaymentAction(data: {
-  bookingId: string;
+  bookingId?: string;
   amount: number;
   paymentType: PaymentType;
   paymentMethod: PaymentMethod;
   reference?: string;
   notes?: string;
+  leadId?: string;
 }) {
+  let targetBookingId = data.bookingId;
+
+  if ((!targetBookingId || targetBookingId.trim() === "") && data.leadId) {
+    const ensured = await ensureBookingForLead(data.leadId);
+    if (ensured) {
+      targetBookingId = ensured.id;
+    }
+  } else if (targetBookingId && data.leadId) {
+    const exists = memoryBookings.find((b) => b.id === targetBookingId);
+    if (!exists) {
+      const ensured = await ensureBookingForLead(data.leadId);
+      if (ensured) targetBookingId = ensured.id;
+    }
+  }
+
+  if (!targetBookingId && data.leadId) {
+    targetBookingId = "b-" + data.leadId;
+  }
+
   const pId = "p-" + Date.now();
+  const now = new Date().toISOString();
   const newPayment: Payment = {
     id: pId,
-    booking_id: data.bookingId,
+    booking_id: targetBookingId || "b-unknown",
     owner_id: memoryProfile.id,
     amount: data.amount,
     payment_type: data.paymentType,
     payment_method: data.paymentMethod,
-    payment_date: new Date().toISOString().split("T")[0],
+    payment_date: now.split("T")[0],
     reference: data.reference || null,
     notes: data.notes || null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created_at: now,
+    updated_at: now,
   };
 
   memoryPayments.unshift(newPayment);
 
-  const booking = memoryBookings.find((b) => b.id === data.bookingId);
+  let booking = memoryBookings.find((b) => b.id === targetBookingId);
   if (booking) {
     booking.remaining_amount = Math.max(0, booking.remaining_amount - data.amount);
     if (data.paymentType === "Advance" && !booking.advance_paid_at) {
-      booking.advance_paid_at = new Date().toISOString();
+      booking.advance_paid_at = now;
     }
-    booking.updated_at = new Date().toISOString();
+    booking.updated_at = now;
 
     const newActivity: Activity = {
       id: "a-" + Date.now(),
@@ -1147,61 +1300,72 @@ export async function recordPaymentAction(data: {
       activity_type: "PAYMENT_RECEIVED",
       title: "Payment Received",
       description: `Payment receipt of ₹${data.amount.toLocaleString("en-IN")} logged via ${data.paymentMethod}.`,
-      created_at: new Date().toISOString(),
+      created_at: now,
     };
     memoryActivities.unshift(newActivity);
   }
 
   const live = await isSupabaseLive();
-  if (live) {
+  if (live && targetBookingId) {
     try {
       const supabase = await createServerSupabase();
       const ownerId = await getAuthenticatedOwnerId();
 
-      const { data: dbP, error: pErr } = await supabase
-        .from("payments")
-        .insert({
-          booking_id: data.bookingId,
-          owner_id: ownerId,
-          amount: data.amount,
-          payment_type: data.paymentType,
-          payment_method: data.paymentMethod,
-          payment_date: new Date().toISOString().split("T")[0],
-          reference: data.reference || null,
-          notes: data.notes || null,
-        })
-        .select()
-        .single();
-
-      if (pErr) {
-        console.error("Supabase payment insert error:", pErr);
+      let { data: dbB } = await supabase.from("bookings").select("*").eq("id", targetBookingId).maybeSingle();
+      if (!dbB && data.leadId) {
+        const ensured = await ensureBookingForLead(data.leadId);
+        if (ensured) {
+          targetBookingId = ensured.id;
+          const { data: refreshedB } = await supabase.from("bookings").select("*").eq("id", targetBookingId).maybeSingle();
+          dbB = refreshedB;
+        }
       }
 
-      const { data: dbB } = await supabase.from("bookings").select("*").eq("id", data.bookingId).single();
-      if (dbB) {
-        const newRem = Math.max(0, (Number(dbB.remaining_amount) || 0) - data.amount);
-        const updates: any = {
-          remaining_amount: newRem,
-          updated_at: new Date().toISOString(),
-        };
-        if (data.paymentType === "Advance" && !dbB.advance_paid_at) {
-          updates.advance_paid_at = new Date().toISOString();
+      if (targetBookingId) {
+        const { data: dbP, error: pErr } = await supabase
+          .from("payments")
+          .insert({
+            booking_id: targetBookingId,
+            owner_id: ownerId,
+            amount: data.amount,
+            payment_type: data.paymentType,
+            payment_method: data.paymentMethod,
+            payment_date: now.split("T")[0],
+            reference: data.reference || null,
+            notes: data.notes || null,
+          })
+          .select()
+          .single();
+
+        if (pErr) {
+          console.error("Supabase payment insert error:", pErr);
         }
 
-        await supabase.from("bookings").update(updates).eq("id", data.bookingId);
+        if (dbB) {
+          const newRem = Math.max(0, (Number(dbB.remaining_amount) || 0) - data.amount);
+          const updates: any = {
+            remaining_amount: newRem,
+            updated_at: now,
+          };
+          if (data.paymentType === "Advance" && !dbB.advance_paid_at) {
+            updates.advance_paid_at = now;
+          }
 
-        await supabase.from("activities").insert({
-          lead_id: dbB.lead_id,
-          client_id: dbB.client_id,
-          owner_id: ownerId,
-          activity_type: "PAYMENT_RECEIVED",
-          title: "Payment Received",
-          description: `Payment receipt of ₹${data.amount.toLocaleString("en-IN")} logged via ${data.paymentMethod}.`,
-          metadata: { amount: data.amount, method: data.paymentMethod },
-        });
+          await supabase.from("bookings").update(updates).eq("id", targetBookingId);
+
+          await supabase.from("activities").insert({
+            lead_id: dbB.lead_id,
+            client_id: dbB.client_id,
+            owner_id: ownerId,
+            activity_type: "PAYMENT_RECEIVED",
+            title: "Payment Received",
+            description: `Payment receipt of ₹${data.amount.toLocaleString("en-IN")} logged via ${data.paymentMethod}.`,
+            metadata: { amount: data.amount, method: data.paymentMethod },
+          });
+        }
+
+        if (dbP) return { success: true, payment: dbP };
       }
-
-      if (dbP) return { success: true, payment: dbP };
     } catch (err) {
       console.error("Error recording payment in Supabase:", err);
     }

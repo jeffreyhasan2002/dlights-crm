@@ -150,7 +150,7 @@ export async function startNegotiationServerAction(
 }
 
 export async function recordPaymentServerAction(data: {
-  bookingId: string;
+  bookingId?: string;
   amount: number;
   paymentType: "Advance" | "Partial Payment" | "Final Payment" | "Other";
   paymentMethod: "UPI" | "Bank Transfer" | "Cash" | "Card" | "Cheque" | "Other";

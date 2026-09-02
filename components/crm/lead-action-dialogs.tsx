@@ -15,6 +15,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 import { LeadWithDetails, LeadStatus, ContactMethod, PaymentType, PaymentMethod } from "@/types/crm";
 import { Button } from "@/components/ui/button";
@@ -51,6 +52,7 @@ interface LeadActionDialogsProps {
 }
 
 export function LeadActionDialogs({ lead }: LeadActionDialogsProps) {
+  const router = useRouter();
   // Modal states
   const [stageOpen, setStageOpen] = useState(false);
   const [followUpOpen, setFollowUpOpen] = useState(false);
@@ -195,11 +197,6 @@ export function LeadActionDialogs({ lead }: LeadActionDialogsProps) {
 
   // 6. Record Payment
   const handlePaymentSubmit = async () => {
-    const booking = lead.bookings?.[0];
-    if (!booking) {
-      toast.error("No booking record found for this lead. Confirm booking first.");
-      return;
-    }
     if (!payAmount || payAmount <= 0) {
       toast.error("Please enter a valid payment amount");
       return;
@@ -207,7 +204,7 @@ export function LeadActionDialogs({ lead }: LeadActionDialogsProps) {
     try {
       setIsSubmitting(true);
       const res = await recordPaymentServerAction({
-        bookingId: booking.id,
+        bookingId: lead.bookings?.[0]?.id || "",
         amount: Number(payAmount),
         paymentType: payType,
         paymentMethod: payMethod,
@@ -220,7 +217,13 @@ export function LeadActionDialogs({ lead }: LeadActionDialogsProps) {
         setPaymentOpen(false);
         setPayAmount(0);
         setPayRef("");
+        setPayNotes("");
+        router.refresh();
+      } else {
+        toast.error("Failed to record payment", { description: (res as any)?.error });
       }
+    } catch {
+      toast.error("An error occurred while recording payment.");
     } finally {
       setIsSubmitting(false);
     }
