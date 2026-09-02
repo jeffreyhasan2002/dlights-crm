@@ -1066,33 +1066,64 @@ export async function acceptQuotationAction(quotationId: string) {
         .single();
 
       if (dbQ) {
-        await supabase
-          .from("leads")
-          .update({
-            lead_status: "Accepted / Booked",
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", dbQ.lead_id);
-
         const { data: dbLead } = await supabase.from("leads").select("*").eq("id", dbQ.lead_id).single();
         if (dbLead) {
           const qAmount = Number(dbQ.amount) || 0;
           const advanceAmount = Math.round(qAmount * 0.35);
           const remainingAmount = qAmount - advanceAmount;
 
-          await supabase.from("bookings").insert({
-            lead_id: dbLead.id,
-            client_id: dbLead.client_id,
-            owner_id: dbLead.owner_id,
-            booking_date: new Date().toISOString().split("T")[0],
-            booking_status: "Booking Confirmed",
-            total_amount: qAmount,
-            advance_amount: advanceAmount,
-            remaining_amount: remainingAmount,
-            advance_paid_at: null,
-            final_payment_due_date: dbLead.event_date || null,
-            notes: "35% advance token required to lock shoot dates.",
-          });
+          await supabase
+            .from("leads")
+            .update({
+              lead_status: "Accepted / Booked",
+              budget: qAmount,
+              next_follow_up_at: null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", dbQ.lead_id);
+
+          await supabase
+            .from("follow_ups")
+            .update({
+              completed_at: new Date().toISOString(),
+              client_response: "Quotation Accepted",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("lead_id", dbQ.lead_id)
+            .is("completed_at", null);
+
+          const { data: existingBooking } = await supabase
+            .from("bookings")
+            .select("id")
+            .eq("lead_id", dbLead.id)
+            .maybeSingle();
+
+          if (existingBooking) {
+            await supabase
+              .from("bookings")
+              .update({
+                total_amount: qAmount,
+                advance_amount: advanceAmount,
+                remaining_amount: remainingAmount,
+                booking_status: "Booking Confirmed",
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", existingBooking.id);
+          } else {
+            await supabase.from("bookings").insert({
+              lead_id: dbLead.id,
+              client_id: dbLead.client_id,
+              owner_id: dbLead.owner_id,
+              booking_date: new Date().toISOString().split("T")[0],
+              booking_status: "Booking Confirmed",
+              total_amount: qAmount,
+              advance_amount: advanceAmount,
+              remaining_amount: remainingAmount,
+              advance_paid_at: null,
+              final_payment_due_date: dbLead.event_date || null,
+              notes: "35% advance token required to lock shoot dates.",
+            });
+          }
 
           await supabase.from("activities").insert({
             lead_id: dbLead.id,
@@ -1524,6 +1555,22 @@ export async function completeFollowUpAction(
       created_at: new Date().toISOString(),
     };
     memoryActivities.unshift(newActivity);
+
+    // In memory: update lead's next_follow_up_at
+    const remainingPending = memoryFollowUps.filter(
+      (f) => f.lead_id === followUp.lead_id && !f.completed_at
+    );
+    const nextPending = remainingPending.sort(
+      (a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime()
+    )[0];
+    const lead = memoryLeads.find((l) => l.id === followUp.lead_id);
+    if (lead) {
+      lead.next_follow_up_at = nextPending?.scheduled_at || null;
+      lead.follow_up_count = (lead.follow_up_count || 0) + 1;
+      lead.last_contacted_at = new Date().toISOString();
+      lead.contact_status = "Responded";
+      lead.updated_at = new Date().toISOString();
+    }
   }
 
   const live = await isSupabaseLive();
@@ -1544,6 +1591,39 @@ export async function completeFollowUpAction(
         .single();
 
       if (dbF) {
+        // Query remaining pending follow-ups for this lead
+        const { data: remainingPending } = await supabase
+          .from("follow_ups")
+          .select("scheduled_at, notes")
+          .eq("lead_id", dbF.lead_id)
+          .is("completed_at", null)
+          .order("scheduled_at", { ascending: true })
+          .limit(1);
+
+        const nextFollowUpAt = remainingPending?.[0]?.scheduled_at || null;
+        const nextAction = remainingPending?.[0]?.notes || null;
+
+        // Fetch current lead follow-up count
+        const { data: currentLead } = await supabase
+          .from("leads")
+          .select("follow_up_count")
+          .eq("id", dbF.lead_id)
+          .maybeSingle();
+
+        const newCount = (currentLead?.follow_up_count || 0) + 1;
+
+        await supabase
+          .from("leads")
+          .update({
+            next_follow_up_at: nextFollowUpAt,
+            next_action: nextAction,
+            follow_up_count: newCount,
+            last_contacted_at: new Date().toISOString(),
+            contact_status: "Responded",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", dbF.lead_id);
+
         await supabase.from("activities").insert({
           lead_id: dbF.lead_id,
           owner_id: ownerId,
@@ -1552,7 +1632,9 @@ export async function completeFollowUpAction(
           description: `Follow-up via ${dbF.contact_method} completed. ${clientResponse ? `Client feedback: "${clientResponse}"` : ""}`,
         });
       }
-    } catch {}
+    } catch (err) {
+      console.error("Error completing follow-up in Supabase:", err);
+    }
   }
 
   return { success: true };

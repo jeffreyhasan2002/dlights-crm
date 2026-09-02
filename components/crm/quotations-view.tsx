@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { Quotation, RejectionReason } from "@/types/crm";
+import { Quotation, RejectionReason, LeadWithDetails } from "@/types/crm";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -53,10 +53,11 @@ import {
 
 interface QuotationsViewProps {
   initialQuotations: Quotation[];
+  leads?: LeadWithDetails[];
   onQuotationUpdate?: (updatedQuotation: Quotation) => void;
 }
 
-export function QuotationsView({ initialQuotations, onQuotationUpdate }: QuotationsViewProps) {
+export function QuotationsView({ initialQuotations, leads, onQuotationUpdate }: QuotationsViewProps) {
   const [quotations, setQuotations] = useState<Quotation[]>(initialQuotations);
   const [tab, setTab] = useState<string>("All");
   const [rejectingQuote, setRejectingQuote] = useState<Quotation | null>(null);
@@ -69,6 +70,10 @@ export function QuotationsView({ initialQuotations, onQuotationUpdate }: Quotati
   React.useEffect(() => {
     setQuotations(initialQuotations);
   }, [initialQuotations]);
+
+  const leadMap = React.useMemo(() => {
+    return new Map((leads || []).map((l) => [l.id, l]));
+  }, [leads]);
 
   const updateLocalQuoteStatus = (id: string, updates: Partial<Quotation>) => {
     const existing = quotations.find((q) => q.id === id);
@@ -223,7 +228,8 @@ export function QuotationsView({ initialQuotations, onQuotationUpdate }: Quotati
           </div>
         ) : (
           filtered.map((q) => {
-            const client = q.lead?.client;
+            const lead = q.lead || leadMap.get(q.lead_id);
+            const client = lead?.client;
             return (
               <Card key={q.id} className="shadow-xs hover:border-primary/40 transition-all flex flex-col justify-between overflow-hidden">
                 <CardHeader className="p-4 pb-3">
@@ -249,7 +255,7 @@ export function QuotationsView({ initialQuotations, onQuotationUpdate }: Quotati
                         {formatCurrency(q.amount)}
                       </div>
                       <span className="text-[10px] text-muted-foreground block truncate max-w-[110px]">
-                        {q.lead?.event_type || "Photography"}
+                        {lead?.event_type || "Photography"}
                       </span>
                     </div>
                   </div>

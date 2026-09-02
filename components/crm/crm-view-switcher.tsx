@@ -89,36 +89,44 @@ export function CRMViewSwitcher({
     setQuotations((prev) =>
       prev.map((q) => (q.id === updatedQuotation.id ? updatedQuotation : q))
     );
-    if (updatedQuotation.status === "Accepted") {
-      setLeads((prev) =>
-        prev.map((l) =>
-          l.id === updatedQuotation.lead_id ? { ...l, lead_status: "Accepted / Booked" } : l
-        )
-      );
+
+    setLeads((prev) =>
+      prev.map((l) => {
+        if (l.id === updatedQuotation.lead_id) {
+          const updatedQuotes = (l.quotations || []).map((q) =>
+            q.id === updatedQuotation.id ? updatedQuotation : q
+          );
+          if (!updatedQuotes.some((q) => q.id === updatedQuotation.id)) {
+            updatedQuotes.unshift(updatedQuotation);
+          }
+
+          let targetStatus = l.lead_status;
+          if (updatedQuotation.status === "Accepted") targetStatus = "Accepted / Booked";
+          else if (updatedQuotation.status === "Rejected") targetStatus = "Rejected / Lost";
+          else if (updatedQuotation.status === "Negotiating") targetStatus = "Negotiation";
+          else if (updatedQuotation.status === "Sent") targetStatus = "Quotation Sent";
+
+          return {
+            ...l,
+            quotations: updatedQuotes,
+            budget: updatedQuotation.amount || updatedQuotation.total_amount || l.budget,
+            lead_status: targetStatus,
+          };
+        }
+        return l;
+      })
+    );
+
+    if (updatedQuotation.status === "Accepted" || updatedQuotation.status === "Rejected") {
       setFollowUps((prev) =>
         prev.map((f) =>
           f.lead_id === updatedQuotation.lead_id && !f.completed_at
-            ? { ...f, completed_at: new Date().toISOString(), notes: (f.notes ? f.notes + " • " : "") + "Quotation Accepted" }
+            ? {
+                ...f,
+                completed_at: new Date().toISOString(),
+                notes: (f.notes ? f.notes + " • " : "") + `Quotation ${updatedQuotation.status}`,
+              }
             : f
-        )
-      );
-    } else if (updatedQuotation.status === "Rejected") {
-      setLeads((prev) =>
-        prev.map((l) =>
-          l.id === updatedQuotation.lead_id ? { ...l, lead_status: "Rejected / Lost" } : l
-        )
-      );
-      setFollowUps((prev) =>
-        prev.map((f) =>
-          f.lead_id === updatedQuotation.lead_id && !f.completed_at
-            ? { ...f, completed_at: new Date().toISOString(), notes: (f.notes ? f.notes + " • " : "") + "Quotation Rejected" }
-            : f
-        )
-      );
-    } else if (updatedQuotation.status === "Negotiating") {
-      setLeads((prev) =>
-        prev.map((l) =>
-          l.id === updatedQuotation.lead_id ? { ...l, lead_status: "Negotiation" } : l
         )
       );
     }
@@ -127,6 +135,34 @@ export function CRMViewSwitcher({
   const handleFollowUpComplete = (followUpId: string, updatedFollowUp: FollowUp) => {
     setFollowUps((prev) =>
       prev.map((f) => (f.id === followUpId ? updatedFollowUp : f))
+    );
+
+    setLeads((prev) =>
+      prev.map((l) => {
+        if (l.id === updatedFollowUp.lead_id) {
+          const updatedFollowUps = (l.follow_ups || []).map((f) =>
+            f.id === followUpId ? updatedFollowUp : f
+          );
+          if (!updatedFollowUps.some((f) => f.id === followUpId)) {
+            updatedFollowUps.unshift(updatedFollowUp);
+          }
+
+          const remainingPending = updatedFollowUps.filter((f) => !f.completed_at);
+          const nextPending = remainingPending.sort(
+            (a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime()
+          )[0];
+
+          return {
+            ...l,
+            follow_ups: updatedFollowUps,
+            next_follow_up_at: nextPending?.scheduled_at || null,
+            next_action: nextPending?.notes || l.next_action,
+            follow_up_count: (l.follow_up_count || 0) + 1,
+            contact_status: "Responded",
+          };
+        }
+        return l;
+      })
     );
   };
 
@@ -299,12 +335,14 @@ export function CRMViewSwitcher({
         {activeTab === "followups" && (
           <FollowUpsView
             initialFollowUps={followUps}
+            leads={enrichedLeads}
             onFollowUpComplete={handleFollowUpComplete}
           />
         )}
         {activeTab === "quotations" && (
           <QuotationsView
             initialQuotations={quotations}
+            leads={enrichedLeads}
             onQuotationUpdate={handleQuotationUpdate}
           />
         )}

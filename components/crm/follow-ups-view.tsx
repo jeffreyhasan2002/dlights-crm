@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { FollowUp } from "@/types/crm";
+import { FollowUp, LeadWithDetails } from "@/types/crm";
 import { formatCurrency, formatDate, formatDateTime, isOverdue } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -40,10 +40,11 @@ import { completeFollowUpServerAction } from "@/lib/crm-actions";
 
 interface FollowUpsViewProps {
   initialFollowUps: FollowUp[];
+  leads?: LeadWithDetails[];
   onFollowUpComplete?: (followUpId: string, updatedFollowUp: FollowUp) => void;
 }
 
-export function FollowUpsView({ initialFollowUps, onFollowUpComplete }: FollowUpsViewProps) {
+export function FollowUpsView({ initialFollowUps, leads, onFollowUpComplete }: FollowUpsViewProps) {
   const [followUps, setFollowUps] = useState<FollowUp[]>(initialFollowUps);
   const [tab, setTab] = useState<"all" | "today" | "overdue" | "completed">("all");
   const [search, setSearch] = useState("");
@@ -57,6 +58,10 @@ export function FollowUpsView({ initialFollowUps, onFollowUpComplete }: FollowUp
   useEffect(() => {
     setFollowUps(initialFollowUps);
   }, [initialFollowUps]);
+
+  const leadMap = React.useMemo(() => {
+    return new Map((leads || []).map((l) => [l.id, l]));
+  }, [leads]);
 
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -192,7 +197,8 @@ export function FollowUpsView({ initialFollowUps, onFollowUpComplete }: FollowUp
         ) : (
           filtered.map((f) => {
             const overdue = isOverdue(f.scheduled_at, !!f.completed_at);
-            const client = f.lead?.client;
+            const lead = f.lead || leadMap.get(f.lead_id);
+            const client = lead?.client;
 
             return (
               <Card
@@ -232,7 +238,7 @@ export function FollowUpsView({ initialFollowUps, onFollowUpComplete }: FollowUp
                 <CardContent className="p-4 pt-1 space-y-3">
                   {/* Event & Scheduled info */}
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-medium text-foreground">{f.lead?.event_type || "Event"}</span>
+                    <span className="font-medium text-foreground">{lead?.event_type || "Event"}</span>
                     <span className="text-muted-foreground flex items-center gap-1 text-[11px]">
                       <Calendar className="h-3 w-3" />
                       {formatDateTime(f.scheduled_at)}
@@ -242,7 +248,7 @@ export function FollowUpsView({ initialFollowUps, onFollowUpComplete }: FollowUp
                   {/* Notes / Action */}
                   <div className="rounded-md bg-muted/40 p-2.5 text-xs text-foreground space-y-1">
                     <p className="text-muted-foreground font-medium text-[11px]">Action required:</p>
-                    <p className="line-clamp-2">{f.notes || f.lead?.next_action || "Follow up on requirements"}</p>
+                    <p className="line-clamp-2">{f.notes || lead?.next_action || "Follow up on requirements"}</p>
                   </div>
 
                   {/* Completion response if completed */}
