@@ -9,14 +9,49 @@ import {
   getPayments,
   getProfile,
 } from "@/lib/crm-service";
+import dynamic from "next/dynamic";
 import { MetricCards } from "@/components/dashboard/metric-cards";
 import { PriorityActions } from "@/components/dashboard/priority-actions";
 import { UpcomingEventsList } from "@/components/dashboard/upcoming-events-list";
 import { PendingPaymentsList } from "@/components/dashboard/pending-payments-list";
-import { RevenueAnalyticsChart } from "@/components/dashboard/revenue-analytics-chart";
-import { LeadSourcesChart } from "@/components/dashboard/lead-sources-chart";
 import { DashboardQuickActions } from "@/components/dashboard/dashboard-quick-actions";
 import { Sparkles, BarChart3 } from "lucide-react";
+
+const RevenueAnalyticsChart = dynamic(
+  () =>
+    import("@/components/dashboard/revenue-analytics-chart").then(
+      (mod) => mod.RevenueAnalyticsChart
+    ),
+  {
+    loading: () => (
+      <div className="h-[380px] w-full rounded-xl border bg-card/60 p-6 flex flex-col justify-between animate-pulse">
+        <div className="space-y-2">
+          <div className="h-5 w-48 rounded bg-muted" />
+          <div className="h-3 w-64 rounded bg-muted/60" />
+        </div>
+        <div className="h-48 w-full rounded bg-muted/40" />
+      </div>
+    ),
+  }
+);
+
+const LeadSourcesChart = dynamic(
+  () =>
+    import("@/components/dashboard/lead-sources-chart").then(
+      (mod) => mod.LeadSourcesChart
+    ),
+  {
+    loading: () => (
+      <div className="h-[380px] w-full rounded-xl border bg-card/60 p-6 flex flex-col justify-between animate-pulse">
+        <div className="space-y-2">
+          <div className="h-5 w-36 rounded bg-muted" />
+          <div className="h-3 w-48 rounded bg-muted/60" />
+        </div>
+        <div className="h-48 w-48 rounded-full bg-muted/40 mx-auto" />
+      </div>
+    ),
+  }
+);
 
 export const revalidate = 0; // Dynamic server fetching for real-time CRM updates
 

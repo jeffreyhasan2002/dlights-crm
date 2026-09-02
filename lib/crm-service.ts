@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient as createServerSupabase } from "@/utils/supabase/server";
 import {
   Lead,
@@ -81,13 +82,15 @@ async function getAuthenticatedOwnerId(): Promise<string> {
   return memoryProfile.id;
 }
 
-export async function getDashboardMetrics(): Promise<DashboardMetrics> {
-  const leads = await getLeads();
-  const followUps = await getFollowUps("all");
-  const quotations = await getQuotations();
-  const bookings = await getBookings();
-  const events = await getEvents();
-  const payments = await getPayments();
+export const getDashboardMetrics = cache(async (): Promise<DashboardMetrics> => {
+  const [leads, followUps, quotations, bookings, events, payments] = await Promise.all([
+    getLeads(),
+    getFollowUps("all"),
+    getQuotations(),
+    getBookings(),
+    getEvents(),
+    getPayments(),
+  ]);
 
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -118,7 +121,7 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
   const upcomingEventsCount = events.filter((e) => e.status === "Upcoming").length;
 
   const pendingAdvanceAmount = bookings
-    .filter((b) => !b.advance_paid_at && b.advance_amount > 0)
+    .filter((b) => !b.advance_paid_at && (b.advance_amount || 0) > 0)
     .reduce((sum, b) => sum + (b.advance_amount || 0), 0);
 
   const pendingFinalAmount = bookings.reduce((sum, b) => sum + (b.remaining_amount || 0), 0);
@@ -139,7 +142,7 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
     totalRevenue,
     totalBookedValue,
   };
-}
+});
 
 export interface GetLeadsFilters {
   status?: string;
@@ -149,7 +152,7 @@ export interface GetLeadsFilters {
   sortBy?: string;
 }
 
-export async function getLeads(filters: GetLeadsFilters = {}): Promise<LeadWithDetails[]> {
+export const getLeads = cache(async (filters: GetLeadsFilters = {}): Promise<LeadWithDetails[]> => {
   const live = await isSupabaseLive();
   let leadsData: Lead[] = memoryLeads;
   let clientsData: Client[] = memoryClients;
@@ -173,49 +176,123 @@ export async function getLeads(filters: GetLeadsFilters = {}): Promise<LeadWithD
         { data: aData },
         { data: nData },
       ] = await Promise.all([
-        supabase.from("leads").select("*").order("created_at", { ascending: false }),
-        supabase.from("clients").select("*"),
-        supabase.from("quotations").select("*"),
-        supabase.from("bookings").select("*"),
-        supabase.from("follow_ups").select("*"),
-        supabase.from("communications").select("*"),
-        supabase.from("activities").select("*").order("created_at", { ascending: false }),
-        supabase.from("notes").select("*").order("created_at", { ascending: false }),
+        supabase
+          .from("leads")
+          .select("id, client_id, owner_id, event_type, event_date, location, budget, source, enquiry_message, lead_status, contact_status, last_contacted_at, next_follow_up_at, follow_up_count, next_action, next_action_due_at, created_at, updated_at")
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("clients")
+          .select("id, owner_id, name, phone, whatsapp, email, location, created_at, updated_at"),
+        supabase
+          .from("quotations")
+          .select("id, owner_id, lead_id, quotation_number, quotation_name, quotation_date, valid_until, event_dates, event_types, coverage_details, total_amount, discount_amount, final_amount, status, notes, created_at, updated_at"),
+        supabase
+          .from("bookings")
+          .select("id, owner_id, lead_id, client_id, quotation_id, booking_status, booking_date, total_amount, advance_amount, remaining_amount, advance_paid_at, final_payment_due_date, notes, created_at, updated_at"),
+        supabase
+          .from("follow_ups")
+          .select("id, owner_id, lead_id, scheduled_at, completed_at, contact_method, notes, outcome, created_at, updated_at"),
+        supabase
+          .from("communications")
+          .select("id, owner_id, lead_id, client_id, type, direction, content, metadata, created_at"),
+        supabase
+          .from("activities")
+          .select("id, owner_id, lead_id, activity_type, title, description, created_at")
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("notes")
+          .select("id, owner_id, lead_id, content, created_at, updated_at")
+          .order("created_at", { ascending: false }),
       ]);
 
-      if (lData) leadsData = lData;
-      if (cData) clientsData = cData;
-      if (qData) quotationsData = qData;
-      if (bData) bookingsData = bData;
-      if (fData) followUpsData = fData;
-      if (comData) communicationsData = comData;
-      if (aData) activitiesData = aData;
-      if (nData) notesData = nData;
+      if (lData) leadsData = lData as any[];
+      if (cData) clientsData = cData as any[];
+      if (qData) quotationsData = qData as any[];
+      if (bData) bookingsData = bData as any[];
+      if (fData) followUpsData = fData as any[];
+      if (comData) communicationsData = comData as any[];
+      if (aData) activitiesData = aData as any[];
+      if (nData) notesData = nData as any[];
     } catch (err) {
       console.error("Error fetching leads from Supabase:", err);
     }
   }
 
-  let results: LeadWithDetails[] = leadsData.map((lead) => {
-    const client =
-      clientsData.find((c) => c.id === lead.client_id) || {
-        id: lead.client_id,
-        owner_id: lead.owner_id,
-        name: "Client",
-        phone: null,
-        whatsapp: null,
-        email: null,
-        location: null,
-        created_at: lead.created_at,
-        updated_at: lead.updated_at,
-      };
+  // O(1) Index Lookup Maps
+  const clientMap = new Map<string, Client>(clientsData.map((c) => [c.id, c]));
+  const quotationMap = new Map<string, Quotation[]>();
+  for (const q of quotationsData) {
+    if (q.lead_id) {
+      const arr = quotationMap.get(q.lead_id) || [];
+      arr.push(q);
+      quotationMap.set(q.lead_id, arr);
+    }
+  }
 
-    let leadQuotations = quotationsData.filter((q) => q.lead_id === lead.id);
-    let leadBookings = bookingsData.filter((b) => b.lead_id === lead.id);
-    const leadFollowUps = followUpsData.filter((f) => f.lead_id === lead.id);
-    const leadCommunications = communicationsData.filter((c) => c.lead_id === lead.id);
-    const leadActivities = activitiesData.filter((a) => a.lead_id === lead.id);
-    const leadNotes = notesData.filter((n) => n.lead_id === lead.id);
+  const bookingMap = new Map<string, Booking[]>();
+  for (const b of bookingsData) {
+    if (b.lead_id) {
+      const arr = bookingMap.get(b.lead_id) || [];
+      arr.push(b);
+      bookingMap.set(b.lead_id, arr);
+    }
+  }
+
+  const followUpMap = new Map<string, FollowUp[]>();
+  for (const f of followUpsData) {
+    if (f.lead_id) {
+      const arr = followUpMap.get(f.lead_id) || [];
+      arr.push(f);
+      followUpMap.set(f.lead_id, arr);
+    }
+  }
+
+  const communicationMap = new Map<string, Communication[]>();
+  for (const c of communicationsData) {
+    if (c.lead_id) {
+      const arr = communicationMap.get(c.lead_id) || [];
+      arr.push(c);
+      communicationMap.set(c.lead_id, arr);
+    }
+  }
+
+  const activityMap = new Map<string, Activity[]>();
+  for (const a of activitiesData) {
+    if (a.lead_id) {
+      const arr = activityMap.get(a.lead_id) || [];
+      arr.push(a);
+      activityMap.set(a.lead_id, arr);
+    }
+  }
+
+  const noteMap = new Map<string, Note[]>();
+  for (const n of notesData) {
+    if (n.lead_id) {
+      const arr = noteMap.get(n.lead_id) || [];
+      arr.push(n);
+      noteMap.set(n.lead_id, arr);
+    }
+  }
+
+  let results: LeadWithDetails[] = leadsData.map((lead) => {
+    const client = clientMap.get(lead.client_id) || {
+      id: lead.client_id,
+      owner_id: lead.owner_id,
+      name: "Client",
+      phone: null,
+      whatsapp: null,
+      email: null,
+      location: null,
+      created_at: lead.created_at,
+      updated_at: lead.updated_at,
+    };
+
+    let leadQuotations = quotationMap.get(lead.id) || [];
+    let leadBookings = bookingMap.get(lead.id) || [];
+    const leadFollowUps = followUpMap.get(lead.id) || [];
+    const leadCommunications = communicationMap.get(lead.id) || [];
+    const leadActivities = activityMap.get(lead.id) || [];
+    const leadNotes = noteMap.get(lead.id) || [];
 
     if (lead.lead_status === "Accepted / Booked" && leadBookings.length === 0) {
       const totalAmount = Number(lead.budget) || 300000;
@@ -280,9 +357,9 @@ export async function getLeads(filters: GetLeadsFilters = {}): Promise<LeadWithD
   }
 
   return results;
-}
+});
 
-export async function getLeadById(id: string): Promise<LeadWithDetails | null> {
+export const getLeadById = cache(async (id: string): Promise<LeadWithDetails | null> => {
   const all = await getLeads();
   let found = all.find((l) => l.id === id || l.id.toLowerCase() === id.toLowerCase());
   if (found) return found;
@@ -291,11 +368,16 @@ export async function getLeadById(id: string): Promise<LeadWithDetails | null> {
   if (live) {
     try {
       const supabase = await createServerSupabase();
-      const { data: dbLead } = await supabase.from("leads").select("*").eq("id", id).maybeSingle();
+      const { data: dbLead } = await supabase
+        .from("leads")
+        .select("id, client_id, owner_id, event_type, event_date, location, budget, source, enquiry_message, lead_status, contact_status, last_contacted_at, next_follow_up_at, follow_up_count, next_action, next_action_due_at, created_at, updated_at")
+        .eq("id", id)
+        .maybeSingle();
+
       if (dbLead) {
         const { data: dbClient } = await supabase
           .from("clients")
-          .select("*")
+          .select("id, owner_id, name, phone, whatsapp, email, location, created_at, updated_at")
           .eq("id", dbLead.client_id)
           .maybeSingle();
 
@@ -319,15 +401,15 @@ export async function getLeadById(id: string): Promise<LeadWithDetails | null> {
           { data: aData },
           { data: nData },
         ] = await Promise.all([
-          supabase.from("quotations").select("*").eq("lead_id", dbLead.id),
-          supabase.from("bookings").select("*").eq("lead_id", dbLead.id),
-          supabase.from("follow_ups").select("*").eq("lead_id", dbLead.id),
-          supabase.from("communications").select("*").eq("lead_id", dbLead.id),
-          supabase.from("activities").select("*").eq("lead_id", dbLead.id).order("created_at", { ascending: false }),
-          supabase.from("notes").select("*").eq("lead_id", dbLead.id).order("created_at", { ascending: false }),
+          supabase.from("quotations").select("id, owner_id, lead_id, quotation_number, quotation_name, quotation_date, valid_until, event_dates, event_types, coverage_details, total_amount, discount_amount, final_amount, status, notes, created_at, updated_at").eq("lead_id", dbLead.id),
+          supabase.from("bookings").select("id, owner_id, lead_id, client_id, quotation_id, booking_status, booking_date, total_amount, advance_amount, remaining_amount, advance_paid_at, final_payment_due_date, notes, created_at, updated_at").eq("lead_id", dbLead.id),
+          supabase.from("follow_ups").select("id, owner_id, lead_id, scheduled_at, completed_at, contact_method, notes, outcome, created_at, updated_at").eq("lead_id", dbLead.id),
+          supabase.from("communications").select("id, owner_id, lead_id, client_id, type, direction, content, metadata, created_at").eq("lead_id", dbLead.id),
+          supabase.from("activities").select("id, owner_id, lead_id, activity_type, title, description, created_at").eq("lead_id", dbLead.id).order("created_at", { ascending: false }),
+          supabase.from("notes").select("id, owner_id, lead_id, content, created_at, updated_at").eq("lead_id", dbLead.id).order("created_at", { ascending: false }),
         ]);
 
-        let resolvedBookings = bData || [];
+        let resolvedBookings: any[] = bData || [];
         if (dbLead.lead_status === "Accepted / Booked" && resolvedBookings.length === 0) {
           const totalAmount = Number(dbLead.budget) || 300000;
           const advanceAmount = Math.round(totalAmount * 0.35);
@@ -338,6 +420,7 @@ export async function getLeadById(id: string): Promise<LeadWithDetails | null> {
               lead_id: dbLead.id,
               client_id: dbLead.client_id,
               owner_id: dbLead.owner_id,
+              quotation_id: null,
               booking_status: "Booking Confirmed",
               booking_date: (dbLead.created_at || new Date().toISOString()).split("T")[0],
               total_amount: totalAmount,
@@ -356,12 +439,12 @@ export async function getLeadById(id: string): Promise<LeadWithDetails | null> {
           ...dbLead,
           source: dbLead.source || "Website",
           client,
-          quotations: qData || [],
-          bookings: resolvedBookings,
-          follow_ups: fData || [],
-          communications: comData || [],
-          activities: aData || [],
-          notes: nData || [],
+          quotations: (qData as any) || [],
+          bookings: (resolvedBookings as any) || [],
+          follow_ups: (fData as any) || [],
+          communications: (comData as any) || [],
+          activities: (aData as any) || [],
+          notes: (nData as any) || [],
         };
       }
     } catch (err) {
@@ -370,28 +453,31 @@ export async function getLeadById(id: string): Promise<LeadWithDetails | null> {
   }
 
   return null;
-}
+});
 
-export async function getClients(): Promise<Client[]> {
+export const getClients = cache(async (): Promise<Client[]> => {
   const live = await isSupabaseLive();
   if (live) {
     try {
       const supabase = await createServerSupabase();
-      const { data } = await supabase.from("clients").select("*").order("name");
-      if (data) return data;
+      const { data } = await supabase
+        .from("clients")
+        .select("id, owner_id, name, phone, whatsapp, email, location, created_at, updated_at")
+        .order("name");
+      if (data) return data as any[];
     } catch {}
   }
   return memoryClients;
-}
+});
 
-export async function getClientById(id: string): Promise<Client | null> {
+export const getClientById = cache(async (id: string): Promise<Client | null> => {
   const clients = await getClients();
   return clients.find((c) => c.id === id) || null;
-}
+});
 
-export async function getFollowUps(
+export const getFollowUps = cache(async (
   type: "all" | "today" | "overdue" | "completed" = "all"
-): Promise<FollowUp[]> {
+): Promise<FollowUp[]> => {
   const leads = await getLeads();
   let rawList: FollowUp[] = memoryFollowUps;
 
@@ -399,14 +485,18 @@ export async function getFollowUps(
   if (live) {
     try {
       const supabase = await createServerSupabase();
-      const { data } = await supabase.from("follow_ups").select("*");
-      if (data) rawList = data;
+      const { data } = await supabase
+        .from("follow_ups")
+        .select("id, owner_id, lead_id, scheduled_at, completed_at, contact_method, notes, outcome, created_at, updated_at");
+      if (data) rawList = data as any[];
     } catch {}
   }
 
+  const leadMap = new Map(leads.map((l) => [l.id, l]));
+
   let list = rawList.map((f) => ({
     ...f,
-    lead: leads.find((l) => l.id === f.lead_id),
+    lead: leadMap.get(f.lead_id),
   }));
 
   const now = new Date();
@@ -429,9 +519,9 @@ export async function getFollowUps(
   }
 
   return list.sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
-}
+});
 
-export async function getQuotations(statusFilter?: string): Promise<Quotation[]> {
+export const getQuotations = cache(async (statusFilter?: string): Promise<Quotation[]> => {
   const leads = await getLeads();
   let rawList: Quotation[] = memoryQuotations;
 
@@ -439,16 +529,20 @@ export async function getQuotations(statusFilter?: string): Promise<Quotation[]>
   if (live) {
     try {
       const supabase = await createServerSupabase();
-      const { data } = await supabase.from("quotations").select("*");
-      if (data) rawList = data;
+      const { data } = await supabase
+        .from("quotations")
+        .select("id, owner_id, lead_id, quotation_number, quotation_name, quotation_date, valid_until, event_dates, event_types, coverage_details, total_amount, discount_amount, final_amount, status, notes, created_at, updated_at");
+      if (data) rawList = data as any[];
     } catch {}
   }
+
+  const leadMap = new Map(leads.map((l) => [l.id, l]));
 
   let list = rawList.map((q) => ({
     ...q,
     amount: q.amount ?? q.total_amount ?? 0,
     total_amount: q.total_amount ?? q.amount ?? 0,
-    lead: leads.find((l) => l.id === q.lead_id),
+    lead: leadMap.get(q.lead_id),
   }));
 
   if (statusFilter && statusFilter !== "All") {
@@ -456,9 +550,9 @@ export async function getQuotations(statusFilter?: string): Promise<Quotation[]>
   }
 
   return list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-}
+});
 
-export async function getBookings(): Promise<Booking[]> {
+export const getBookings = cache(async (): Promise<Booking[]> => {
   const leads = await getLeads();
   const clients = await getClients();
   let rawBookings: Booking[] = memoryBookings;
@@ -469,23 +563,38 @@ export async function getBookings(): Promise<Booking[]> {
     try {
       const supabase = await createServerSupabase();
       const [{ data: bData }, { data: pData }] = await Promise.all([
-        supabase.from("bookings").select("*"),
-        supabase.from("payments").select("*"),
+        supabase
+          .from("bookings")
+          .select("id, owner_id, lead_id, client_id, quotation_id, booking_status, booking_date, total_amount, advance_amount, remaining_amount, advance_paid_at, final_payment_due_date, notes, created_at, updated_at"),
+        supabase
+          .from("payments")
+          .select("id, owner_id, booking_id, lead_id, amount, payment_type, payment_method, payment_date, reference_number, notes, status, created_at, updated_at"),
       ]);
-      if (bData) rawBookings = bData;
-      if (pData) rawPayments = pData;
+      if (bData) rawBookings = bData as any[];
+      if (pData) rawPayments = pData as any[];
     } catch {}
+  }
+
+  const leadMap = new Map(leads.map((l) => [l.id, l]));
+  const clientMap = new Map(clients.map((c) => [c.id, c]));
+  const paymentMap = new Map<string, Payment[]>();
+  for (const p of rawPayments) {
+    if (p.booking_id) {
+      const arr = paymentMap.get(p.booking_id) || [];
+      arr.push(p);
+      paymentMap.set(p.booking_id, arr);
+    }
   }
 
   return rawBookings.map((b) => ({
     ...b,
-    lead: leads.find((l) => l.id === b.lead_id),
-    client: clients.find((c) => c.id === b.client_id),
-    payments: rawPayments.filter((p) => p.booking_id === b.id),
+    lead: leadMap.get(b.lead_id),
+    client: clientMap.get(b.client_id),
+    payments: paymentMap.get(b.id) || [],
   }));
-}
+});
 
-export async function getPayments(): Promise<Payment[]> {
+export const getPayments = cache(async (): Promise<Payment[]> => {
   const bookings = await getBookings();
   let rawPayments: Payment[] = memoryPayments;
 
@@ -493,20 +602,24 @@ export async function getPayments(): Promise<Payment[]> {
   if (live) {
     try {
       const supabase = await createServerSupabase();
-      const { data } = await supabase.from("payments").select("*");
-      if (data) rawPayments = data;
+      const { data } = await supabase
+        .from("payments")
+        .select("id, owner_id, booking_id, lead_id, amount, payment_type, payment_method, payment_date, reference_number, notes, status, created_at, updated_at");
+      if (data) rawPayments = data as any[];
     } catch {}
   }
+
+  const bookingMap = new Map(bookings.map((b) => [b.id, b]));
 
   return rawPayments
     .map((p) => ({
       ...p,
-      booking: bookings.find((b) => b.id === p.booking_id),
+      booking: p.booking_id ? bookingMap.get(p.booking_id) : undefined,
     }))
     .sort((a, b) => new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime());
-}
+});
 
-export async function getEvents(status?: string): Promise<CRMEvent[]> {
+export const getEvents = cache(async (status?: string): Promise<CRMEvent[]> => {
   const clients = await getClients();
   let rawEvents: CRMEvent[] = memoryEvents;
 
@@ -514,14 +627,19 @@ export async function getEvents(status?: string): Promise<CRMEvent[]> {
   if (live) {
     try {
       const supabase = await createServerSupabase();
-      const { data } = await supabase.from("events").select("*");
-      if (data) rawEvents = data;
+      const { data } = await supabase
+        .from("events")
+        .select("id, owner_id, lead_id, client_id, title, event_type, event_date, start_time, end_time, location, notes, status, created_at, updated_at");
+      if (data) rawEvents = data as any[];
     } catch {}
   }
 
+  const clientMap = new Map(clients.map((c) => [c.id, c]));
+
   let list = rawEvents.map((e) => ({
     ...e,
-    client: clients.find((c) => c.id === e.client_id),
+    event_name: (e as any).event_name || (e as any).title || "Shoot",
+    client: clientMap.get(e.client_id),
   }));
 
   if (status && status !== "All") {
@@ -529,14 +647,18 @@ export async function getEvents(status?: string): Promise<CRMEvent[]> {
   }
 
   return list.sort((a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime());
-}
+});
 
-export async function getProfile(): Promise<Profile> {
+export const getProfile = cache(async (): Promise<Profile> => {
   const live = await isSupabaseLive();
   if (live) {
     try {
       const supabase = await createServerSupabase();
-      const { data } = await supabase.from("profiles").select("*").limit(1).maybeSingle();
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, full_name, email, avatar_url, business_name, phone, whatsapp, default_location, currency, date_format, timezone, created_at, updated_at")
+        .limit(1)
+        .maybeSingle();
       if (data) {
         return {
           ...memoryProfile,
@@ -546,7 +668,7 @@ export async function getProfile(): Promise<Profile> {
     } catch {}
   }
   return memoryProfile;
-}
+});
 
 // ----------------------------------------------------------------------------
 // MUTATION ACTIONS (SYNCED WITH SUPABASE & LOCAL CACHE)
@@ -1880,7 +2002,7 @@ export async function deleteEventAction(eventId: string) {
   return { success: true };
 }
 
-export async function getStudioNotifications(): Promise<StudioNotification[]> {
+export const getStudioNotifications = cache(async (): Promise<StudioNotification[]> => {
   const [overdueFollowUps, todayFollowUps, bookings] = await Promise.all([
     getFollowUps("overdue"),
     getFollowUps("today"),
@@ -1930,4 +2052,4 @@ export async function getStudioNotifications(): Promise<StudioNotification[]> {
   }
 
   return notifications;
-}
+});

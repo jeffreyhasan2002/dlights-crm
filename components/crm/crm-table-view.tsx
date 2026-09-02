@@ -60,6 +60,8 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { deleteLeadServerAction } from "@/lib/crm-actions";
 
+import { useDebounce } from "@/hooks/use-debounce";
+
 interface CRMTableViewProps {
   initialLeads: LeadWithDetails[];
 }
@@ -70,6 +72,7 @@ export function CRMTableView({ initialLeads }: CRMTableViewProps) {
   const [leadToDelete, setLeadToDelete] = useState<LeadWithDetails | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebounce(search, 200);
   const [statusFilter, setStatusFilter] = useState("All");
   const [contactStatusFilter, setContactStatusFilter] = useState("All");
   const [eventTypeFilter, setEventTypeFilter] = useState("All");
@@ -109,8 +112,8 @@ export function CRMTableView({ initialLeads }: CRMTableViewProps) {
         if (contactStatusFilter !== "All" && lead.contact_status !== contactStatusFilter) return false;
         if (eventTypeFilter !== "All" && lead.event_type !== eventTypeFilter) return false;
 
-        if (search.trim()) {
-          const term = search.toLowerCase().trim();
+        if (debouncedSearch.trim()) {
+          const term = debouncedSearch.toLowerCase().trim();
           const matchName = lead.client?.name?.toLowerCase().includes(term);
           const matchPhone = lead.client?.phone?.includes(term);
           const matchEmail = lead.client?.email?.toLowerCase().includes(term);
@@ -142,7 +145,7 @@ export function CRMTableView({ initialLeads }: CRMTableViewProps) {
           return valA < valB ? 1 : -1;
         }
       });
-  }, [initialLeads, search, statusFilter, contactStatusFilter, eventTypeFilter, sortField, sortOrder]);
+  }, [leads, debouncedSearch, statusFilter, contactStatusFilter, eventTypeFilter, sortField, sortOrder]);
 
   const totalPages = Math.ceil(filteredLeads.length / pageSize) || 1;
   const paginatedLeads = filteredLeads.slice((page - 1) * pageSize, page * pageSize);

@@ -61,6 +61,8 @@ import {
 import { NewEnquiryDialog } from "@/components/forms/new-enquiry-dialog";
 import { deleteClientServerAction } from "@/lib/crm-actions";
 
+import { useDebounce } from "@/hooks/use-debounce";
+
 interface ClientsDirectoryViewProps {
   clients: Client[];
   leads: LeadWithDetails[];
@@ -97,17 +99,32 @@ export function ClientsDirectoryView({ clients: initialClients, leads, bookings 
     }
   };
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebounce(search, 200);
   const [tabFilter, setTabFilter] = useState<"all" | "booked" | "enquiry">("all");
   const [sortBy, setSortBy] = useState<"name" | "spend" | "leads" | "recent">("recent");
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(12);
 
-  // Compute stats
+  // Compute stats with O(1) indexing
   const clientStats = useMemo(() => {
+    const leadMap = new Map<string, LeadWithDetails[]>();
+    for (const l of leads) {
+      const arr = leadMap.get(l.client_id) || [];
+      arr.push(l);
+      leadMap.set(l.client_id, arr);
+    }
+
+    const bookingMap = new Map<string, Booking[]>();
+    for (const b of bookings) {
+      const arr = bookingMap.get(b.client_id) || [];
+      arr.push(b);
+      bookingMap.set(b.client_id, arr);
+    }
+
     return clients.map((c) => {
-      const clientLeads = leads.filter((l) => l.client_id === c.id);
-      const clientBookings = bookings.filter((b) => b.client_id === c.id);
+      const clientLeads = leadMap.get(c.id) || [];
+      const clientBookings = bookingMap.get(c.id) || [];
       const totalSpent = clientBookings.reduce((sum, b) => sum + (b.total_amount || 0), 0);
       const hasBooked = clientBookings.length > 0;
       const hasEnquiries = clientLeads.length > 0;
@@ -131,8 +148,8 @@ export function ClientsDirectoryView({ clients: initialClients, leads, bookings 
         if (tabFilter === "booked" && !c.hasBooked) return false;
         if (tabFilter === "enquiry" && !c.hasEnquiries) return false;
 
-        if (search.trim()) {
-          const term = search.toLowerCase().trim();
+        if (debouncedSearch.trim()) {
+          const term = debouncedSearch.toLowerCase().trim();
           const matchName = c.name?.toLowerCase().includes(term);
           const matchPhone = c.phone?.includes(term);
           const matchEmail = c.email?.toLowerCase().includes(term);
@@ -155,7 +172,7 @@ export function ClientsDirectoryView({ clients: initialClients, leads, bookings 
         // Recent
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       });
-  }, [clientStats, search, tabFilter, sortBy]);
+  }, [clientStats, debouncedSearch, tabFilter, sortBy]);
 
   // Pagination calculations
   const totalItems = filteredClients.length;
