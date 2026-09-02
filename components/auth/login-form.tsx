@@ -11,7 +11,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { setDemoSessionAction } from "@/lib/auth-actions";
 
 export function LoginForm({
   defaultEmail = "",
@@ -40,62 +39,28 @@ export function LoginForm({
       setIsLoading(true);
       const supabase = createBrowserSupabase();
 
-      // Authenticate via Supabase Auth
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password: password.trim(),
       });
 
-      const isMasterAdmin =
-        email.trim().toLowerCase() === "dlightstudios@gmail.com" &&
-        password.trim() === "dlights@2002";
-
       if (error) {
-        if (
-          isMasterAdmin ||
-          error.status === 429 ||
-          error.message.toLowerCase().includes("rate limit") ||
-          (error as any).code === "over_request_rate_limit"
-        ) {
-          // If master admin credentials or rate limit reached, authenticate session
-          await setDemoSessionAction();
-          toast.success("Welcome back, Bruno Sangeeth!", {
-            description: "Signed in successfully to Dlight Studios CRM.",
-          });
-          setTimeout(() => {
-            window.location.href = redirectUrl;
-          }, 350);
-          return;
-        }
-
         toast.error("Authentication Failed", {
           description: error.message || "Invalid email or password. Please verify your credentials.",
         });
-      } else if (data.session) {
-        await setDemoSessionAction();
-        toast.success("Welcome back!", {
-          description: `Signed in as ${data.user?.email || email}`,
-        });
-        setTimeout(() => {
-          window.location.href = redirectUrl;
-        }, 350);
-      }
-    } catch (err: any) {
-      const isMasterAdmin =
-        email.trim().toLowerCase() === "dlightstudios@gmail.com" &&
-        password.trim() === "dlights@2002";
-
-      if (isMasterAdmin) {
-        await setDemoSessionAction();
-        toast.success("Welcome back, Bruno Sangeeth!", {
-          description: "Signed in successfully to Dlight Studios CRM.",
-        });
-        setTimeout(() => {
-          window.location.href = redirectUrl;
-        }, 350);
         return;
       }
 
+      if (data?.session || data?.user) {
+        toast.success("Welcome back!", {
+          description: `Signed in as ${data.user?.email || email}`,
+        });
+
+        setTimeout(() => {
+          window.location.href = redirectUrl;
+        }, 300);
+      }
+    } catch (err: any) {
       toast.error("Sign In Error", {
         description: err?.message || "An unexpected error occurred during sign in.",
       });

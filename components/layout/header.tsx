@@ -215,11 +215,7 @@ export function Header({ user, profile, notifications = [] }: HeaderProps) {
                 try {
                   const { createClient } = await import("@/utils/supabase/client");
                   const supabase = createClient();
-                  await supabase.auth.signOut().catch(() => {});
-                } catch {}
-                try {
-                  const { clearDemoSessionAction } = await import("@/lib/auth-actions");
-                  await clearDemoSessionAction();
+                  await supabase.auth.signOut();
                 } catch {}
                 window.location.href = "/login";
               }}
