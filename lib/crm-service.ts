@@ -50,7 +50,10 @@ let memoryProfile: Profile = {
 
 async function isSupabaseLive(): Promise<boolean> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (!url || url.includes("YOUR_PROJECT_ID") || url.includes("placeholder")) {
+  const key =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key || url.includes("YOUR_PROJECT_ID") || url.includes("placeholder")) {
     return false;
   }
   try {
