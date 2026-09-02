@@ -71,14 +71,14 @@ export function QuotationsView({ initialQuotations, onQuotationUpdate }: Quotati
   }, [initialQuotations]);
 
   const updateLocalQuoteStatus = (id: string, updates: Partial<Quotation>) => {
+    const existing = quotations.find((q) => q.id === id);
+    const updated: Quotation | undefined = existing ? { ...existing, ...updates } : undefined;
+
     setQuotations((prev) =>
       prev.map((q) => (q.id === id ? { ...q, ...updates } : q))
     );
-    if (onQuotationUpdate) {
-      const existing = quotations.find((q) => q.id === id);
-      if (existing) {
-        onQuotationUpdate({ ...existing, ...updates });
-      }
+    if (onQuotationUpdate && updated) {
+      onQuotationUpdate(updated);
     }
   };
 

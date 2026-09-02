@@ -45,6 +45,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useDebounce } from "@/hooks/use-debounce";
 import { updateLeadStatusServerAction, deleteLeadServerAction } from "@/lib/crm-actions";
 
 const PIPELINE_COLUMNS: { id: LeadStatus; title: string; color: string }[] = [
@@ -68,6 +69,7 @@ export function CRMKanbanBoard({ initialLeads, onLeadStatusChange }: CRMKanbanBo
   const [leadToDelete, setLeadToDelete] = useState<LeadWithDetails | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebounce(search, 200);
   const [draggingLeadId, setDraggingLeadId] = useState<string | null>(null);
 
   React.useEffect(() => {
@@ -94,10 +96,10 @@ export function CRMKanbanBoard({ initialLeads, onLeadStatusChange }: CRMKanbanBo
     }
   };
 
-  // Filter leads based on live search
+  // Filter leads based on live debounced search
   const filteredLeads = useMemo(() => {
-    if (!search.trim()) return leads;
-    const term = search.toLowerCase().trim();
+    if (!debouncedSearch.trim()) return leads;
+    const term = debouncedSearch.toLowerCase().trim();
     return leads.filter((l) => {
       const matchName = l.client?.name?.toLowerCase().includes(term);
       const matchPhone = l.client?.phone?.includes(term);
@@ -106,7 +108,7 @@ export function CRMKanbanBoard({ initialLeads, onLeadStatusChange }: CRMKanbanBo
       const matchAction = l.next_action?.toLowerCase().includes(term);
       return matchName || matchPhone || matchEvent || matchLoc || matchAction;
     });
-  }, [leads, search]);
+  }, [leads, debouncedSearch]);
 
   // Drag Handlers
   const handleDragStart = (e: React.DragEvent, leadId: string) => {
@@ -241,7 +243,9 @@ export function CRMKanbanBoard({ initialLeads, onLeadStatusChange }: CRMKanbanBo
                 ) : (
                   columnLeads.map((lead) => {
                     const overdue = isOverdue(lead.next_follow_up_at);
-                    const quotation = lead.quotations?.[0];
+                    const latestQuotation = lead.quotations?.[0];
+                    const pendingFollowUps = (lead.follow_ups || []).filter((f) => !f.completed_at);
+                    const completedFollowUpsCount = (lead.follow_ups || []).filter((f) => !!f.completed_at).length;
 
                     return (
                       <div
@@ -318,6 +322,35 @@ export function CRMKanbanBoard({ initialLeads, onLeadStatusChange }: CRMKanbanBo
                               {getContactBadge(lead.contact_status)}
                             </div>
 
+                            {/* Live Quotation Badge */}
+                            {latestQuotation && (
+                              <div className="flex items-center justify-between text-[11px] px-2 py-1 rounded-md bg-indigo-50/60 dark:bg-indigo-950/40 border border-indigo-200/60 dark:border-indigo-800/40">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <FileText className="h-3 w-3 shrink-0 text-indigo-600 dark:text-indigo-400" />
+                                  <span className="font-mono text-[10px] text-muted-foreground truncate">
+                                    {latestQuotation.quotation_number}
+                                  </span>
+                                  <span className="font-semibold text-foreground">
+                                    {formatCurrency(latestQuotation.amount ?? latestQuotation.total_amount ?? 0)}
+                                  </span>
+                                </div>
+                                <Badge
+                                  variant={
+                                    latestQuotation.status === "Accepted"
+                                      ? "success"
+                                      : latestQuotation.status === "Rejected"
+                                      ? "destructive"
+                                      : latestQuotation.status === "Negotiating"
+                                      ? "secondary"
+                                      : "outline"
+                                  }
+                                  className="text-[9px] px-1 py-0 shrink-0 font-medium"
+                                >
+                                  {latestQuotation.status}
+                                </Badge>
+                              </div>
+                            )}
+
                             {/* Next Action */}
                             {lead.next_action && (
                               <div className="rounded bg-muted/50 p-1.5 text-xs text-muted-foreground">
@@ -328,23 +361,28 @@ export function CRMKanbanBoard({ initialLeads, onLeadStatusChange }: CRMKanbanBo
                               </div>
                             )}
 
-                            {/* Event Date & Follow up indicator */}
+                            {/* Event Date & Live Follow-up Status */}
                             <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1">
                               <span className="flex items-center gap-1">
-                                <Calendar className="h-3 w-3" />
+                                <Calendar className="h-3 w-3 shrink-0" />
                                 {lead.event_date ? formatDate(lead.event_date, "dd MMM yy") : "Date TBD"}
                               </span>
 
-                              {lead.next_follow_up_at && (
+                              {lead.next_follow_up_at ? (
                                 <span
                                   className={`flex items-center gap-1 font-medium ${
                                     overdue ? "text-destructive" : "text-amber-600 dark:text-amber-400"
                                   }`}
+                                  title={`Next scheduled follow-up: ${formatDate(lead.next_follow_up_at)}`}
                                 >
-                                  <Clock className="h-3 w-3" />
+                                  <Clock className="h-3 w-3 shrink-0" />
                                   {overdue ? "Overdue" : formatDate(lead.next_follow_up_at, "dd MMM")}
                                 </span>
-                              )}
+                              ) : completedFollowUpsCount > 0 ? (
+                                <span className="flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+                                  ✓ {completedFollowUpsCount} done
+                                </span>
+                              ) : null}
                             </div>
                           </CardContent>
                         </Card>

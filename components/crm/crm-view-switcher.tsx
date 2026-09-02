@@ -141,11 +141,63 @@ export function CRMViewSwitcher({
     router.push(`/crm${queryString ? `?${queryString}` : ""}`);
   };
 
+  // Enrich leads with latest real-time followUps, quotations, and bookings
+  const enrichedLeads = React.useMemo(() => {
+    const quotationMap = new Map<string, Quotation[]>();
+    for (const q of quotations) {
+      if (q.lead_id) {
+        const arr = quotationMap.get(q.lead_id) || [];
+        arr.push(q);
+        quotationMap.set(q.lead_id, arr);
+      }
+    }
+
+    const followUpMap = new Map<string, FollowUp[]>();
+    for (const f of followUps) {
+      if (f.lead_id) {
+        const arr = followUpMap.get(f.lead_id) || [];
+        arr.push(f);
+        followUpMap.set(f.lead_id, arr);
+      }
+    }
+
+    const bookingMap = new Map<string, Booking[]>();
+    for (const b of bookings) {
+      if (b.lead_id) {
+        const arr = bookingMap.get(b.lead_id) || [];
+        arr.push(b);
+        bookingMap.set(b.lead_id, arr);
+      }
+    }
+
+    return leads.map((lead) => {
+      const leadQuotations = quotationMap.get(lead.id) || lead.quotations || [];
+      const leadFollowUps = followUpMap.get(lead.id) || lead.follow_ups || [];
+      const leadBookings = bookingMap.get(lead.id) || lead.bookings || [];
+
+      // Determine next follow-up from either lead.next_follow_up_at or pending follow-ups
+      const pendingFollowUps = leadFollowUps.filter((f) => !f.completed_at);
+      const nextPendingFollowUp = pendingFollowUps.sort(
+        (a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime()
+      )[0];
+
+      const nextFollowUpAt = nextPendingFollowUp?.scheduled_at || lead.next_follow_up_at;
+
+      return {
+        ...lead,
+        quotations: leadQuotations,
+        follow_ups: leadFollowUps,
+        bookings: leadBookings,
+        next_follow_up_at: nextFollowUpAt,
+      };
+    });
+  }, [leads, quotations, followUps, bookings]);
+
   // Dynamic Live Counts
-  const totalEnquiries = leads.length;
-  const negotiationsCount = leads.filter((l) => l.lead_status === "Negotiation").length;
-  const bookedCount = leads.filter((l) => l.lead_status === "Accepted / Booked").length;
-  const lostCount = leads.filter((l) => l.lead_status === "Rejected / Lost").length;
+  const totalEnquiries = enrichedLeads.length;
+  const negotiationsCount = enrichedLeads.filter((l) => l.lead_status === "Negotiation").length;
+  const bookedCount = enrichedLeads.filter((l) => l.lead_status === "Accepted / Booked").length;
+  const lostCount = enrichedLeads.filter((l) => l.lead_status === "Rejected / Lost").length;
   const pendingFollowUpsCount = followUps.filter((f) => !f.completed_at).length;
   const activeQuotationsCount = quotations.length;
 
@@ -237,10 +289,10 @@ export function CRMViewSwitcher({
 
       {/* Render Active View Component */}
       <div>
-        {activeTab === "all" && <CRMTableView initialLeads={leads} />}
+        {activeTab === "all" && <CRMTableView initialLeads={enrichedLeads} />}
         {activeTab === "kanban" && (
           <CRMKanbanBoard
-            initialLeads={leads}
+            initialLeads={enrichedLeads}
             onLeadStatusChange={handleLeadStatusChange}
           />
         )}
@@ -256,9 +308,9 @@ export function CRMViewSwitcher({
             onQuotationUpdate={handleQuotationUpdate}
           />
         )}
-        {activeTab === "negotiations" && <NegotiationsView leads={leads} />}
-        {activeTab === "booked" && <BookedView leads={leads} bookings={bookings} />}
-        {activeTab === "lost" && <LostView leads={leads} />}
+        {activeTab === "negotiations" && <NegotiationsView leads={enrichedLeads} />}
+        {activeTab === "booked" && <BookedView leads={enrichedLeads} bookings={bookings} />}
+        {activeTab === "lost" && <LostView leads={enrichedLeads} />}
       </div>
     </div>
   );

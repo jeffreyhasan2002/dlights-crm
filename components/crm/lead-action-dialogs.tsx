@@ -99,6 +99,7 @@ export function LeadActionDialogs({ lead }: LeadActionDialogsProps) {
       if (res.success) {
         toast.success(`Pipeline stage updated to "${selectedStage}"`);
         setStageOpen(false);
+        router.refresh();
       }
     } finally {
       setIsSubmitting(false);
@@ -123,6 +124,7 @@ export function LeadActionDialogs({ lead }: LeadActionDialogsProps) {
         toast.success("Follow-up scheduled successfully!");
         setFollowUpOpen(false);
         setFollowUpNotes("");
+        router.refresh();
       }
     } finally {
       setIsSubmitting(false);
@@ -149,6 +151,7 @@ export function LeadActionDialogs({ lead }: LeadActionDialogsProps) {
         setCommOpen(false);
         setCommMessage("");
         setCommResponse("");
+        router.refresh();
       }
     } finally {
       setIsSubmitting(false);
@@ -165,6 +168,7 @@ export function LeadActionDialogs({ lead }: LeadActionDialogsProps) {
         toast.success("Note saved!");
         setNoteOpen(false);
         setNoteText("");
+        router.refresh();
       }
     } finally {
       setIsSubmitting(false);
@@ -189,6 +193,7 @@ export function LeadActionDialogs({ lead }: LeadActionDialogsProps) {
         toast.success("Quotation draft created!");
         setQuoteOpen(false);
         setQuoteNotes("");
+        router.refresh();
       }
     } finally {
       setIsSubmitting(false);
@@ -239,8 +244,9 @@ export function LeadActionDialogs({ lead }: LeadActionDialogsProps) {
         nextActionDate ? new Date(nextActionDate).toISOString() : undefined
       );
       if (res.success) {
-        toast.success("Next action updated!");
+        toast.success("Next action plan updated!");
         setNextActionOpen(false);
+        router.refresh();
       }
     } finally {
       setIsSubmitting(false);
