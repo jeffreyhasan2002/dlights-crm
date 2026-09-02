@@ -1,10 +1,8 @@
-import { Suspense } from "react";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/layout/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
-import { TopProgressBar } from "@/components/layout/top-progress-bar";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -38,9 +36,6 @@ export default function RootLayout({
           enableSystem={false}
           disableTransitionOnChange
         >
-          <Suspense fallback={null}>
-            <TopProgressBar />
-          </Suspense>
           {children}
           <Toaster richColors position="top-right" />
         </ThemeProvider>

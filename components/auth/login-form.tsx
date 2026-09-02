@@ -11,7 +11,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { DlightsLoader } from "@/components/ui/dlights-loader";
 
 export function LoginForm({
   defaultEmail = "",
@@ -25,7 +24,6 @@ export function LoginForm({
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
-  const [isRedirecting, setIsRedirecting] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectUrl = searchParams ? searchParams.get("redirect") || "/dashboard" : "/dashboard";
@@ -55,14 +53,11 @@ export function LoginForm({
       }
 
       if (data?.session || data?.user) {
-        setIsRedirecting(true);
         toast.success("Welcome back!", {
           description: `Signed in as ${data.user?.email || email}`,
         });
 
-        setTimeout(() => {
-          window.location.href = redirectUrl;
-        }, 300);
+        window.location.href = redirectUrl;
       }
     } catch (err: any) {
       setIsLoading(false);
@@ -71,17 +66,6 @@ export function LoginForm({
       });
     }
   };
-
-  if (isRedirecting) {
-    return (
-      <DlightsLoader
-        fullscreen
-        label="Signing in to Dlight Studios..."
-        subtitle="Launching your photography dashboard"
-        size="md"
-      />
-    );
-  }
 
   return (
     <form onSubmit={handleSignIn} className="space-y-4">
