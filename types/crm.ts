@@ -308,3 +308,12 @@ export interface DashboardMetrics {
   totalRevenue: number;
   totalBookedValue: number;
 }
+
+export interface StudioNotification {
+  id: string;
+  title: string;
+  description: string;
+  leadId?: string;
+  type: "overdue" | "due_today" | "pending_advance";
+  created_at: string;
+}

@@ -13,6 +13,7 @@ import {
   LogOut,
   Bell,
   Menu,
+  CheckCircle2,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -29,14 +30,15 @@ import { SearchDialog } from "@/components/layout/search-dialog";
 import { NewEnquiryDialog } from "@/components/forms/new-enquiry-dialog";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
-import type { Profile } from "@/types/crm";
+import type { Profile, StudioNotification } from "@/types/crm";
 
 interface HeaderProps {
   user?: any;
   profile?: Profile | null;
+  notifications?: StudioNotification[];
 }
 
-export function Header({ user, profile }: HeaderProps) {
+export function Header({ user, profile, notifications = [] }: HeaderProps) {
   const { setTheme } = useTheme();
 
   const fullName = profile?.full_name || "Bruno Sangeeth";
@@ -90,28 +92,60 @@ export function Header({ user, profile }: HeaderProps) {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="relative h-9 w-9">
               <Bell className="h-4 w-4" />
-              <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-destructive" />
+              {notifications.length > 0 && (
+                <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-destructive animate-pulse" />
+              )}
               <span className="sr-only">Notifications</span>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-80">
+          <DropdownMenuContent align="end" className="w-80 shadow-md">
             <DropdownMenuLabel className="flex items-center justify-between">
               <span>Studio Notifications</span>
-              <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-normal">
-                2 pending
-              </span>
+              {notifications.length > 0 ? (
+                <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium">
+                  {notifications.length} pending
+                </span>
+              ) : (
+                <span className="text-[10px] text-muted-foreground font-normal">
+                  All caught up
+                </span>
+              )}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <div className="p-2 space-y-2 text-xs">
-              <div className="rounded p-2 bg-muted/50 border space-y-1">
-                <p className="font-medium text-foreground">Follow-up Due: Priya Sharma</p>
-                <p className="text-[11px] text-muted-foreground">Scheduled quotation follow-up today for Mumbai Sangeet.</p>
+            {notifications.length === 0 ? (
+              <div className="p-4 text-center text-xs text-muted-foreground space-y-1">
+                <CheckCircle2 className="h-5 w-5 text-emerald-500 mx-auto mb-1" />
+                <p className="font-semibold text-foreground">All caught up!</p>
+                <p className="text-[11px]">No pending reminders or overdue follow-ups.</p>
               </div>
-              <div className="rounded p-2 bg-muted/50 border space-y-1">
-                <p className="font-medium text-foreground">Payment Advance Overdue</p>
-                <p className="text-[11px] text-muted-foreground">₹75,000 pending from Sneha & Rohan Kapoor for Goa wedding.</p>
+            ) : (
+              <div className="p-2 space-y-2 text-xs max-h-72 overflow-y-auto">
+                {notifications.map((n) => (
+                  <div
+                    key={n.id}
+                    className="rounded-lg p-2.5 bg-muted/40 hover:bg-muted/70 transition-colors border space-y-1"
+                  >
+                    {n.leadId ? (
+                      <Link href={`/crm/${n.leadId}`} className="block group">
+                        <p className="font-medium text-foreground group-hover:text-primary transition-colors">
+                          {n.title}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground leading-relaxed mt-0.5">
+                          {n.description}
+                        </p>
+                      </Link>
+                    ) : (
+                      <>
+                        <p className="font-medium text-foreground">{n.title}</p>
+                        <p className="text-[11px] text-muted-foreground leading-relaxed mt-0.5">
+                          {n.description}
+                        </p>
+                      </>
+                    )}
+                  </div>
+                ))}
               </div>
-            </div>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
 

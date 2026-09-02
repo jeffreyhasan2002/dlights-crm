@@ -13,6 +13,7 @@ import {
   Note,
   Profile,
   DashboardMetrics,
+  StudioNotification,
   LeadStatus,
   ContactStatus,
   EventType,
@@ -1877,4 +1878,56 @@ export async function deleteEventAction(eventId: string) {
   }
 
   return { success: true };
+}
+
+export async function getStudioNotifications(): Promise<StudioNotification[]> {
+  const [overdueFollowUps, todayFollowUps, bookings] = await Promise.all([
+    getFollowUps("overdue"),
+    getFollowUps("today"),
+    getBookings(),
+  ]);
+
+  const notifications: StudioNotification[] = [];
+
+  for (const f of overdueFollowUps) {
+    if (notifications.length >= 4) break;
+    notifications.push({
+      id: "notif-f-" + f.id,
+      title: `Overdue Follow-up: ${f.lead?.client?.name || "Client"}`,
+      description: f.notes || `Scheduled follow-up missed on ${f.scheduled_at?.split("T")[0] || "prior date"}.`,
+      leadId: f.lead_id,
+      type: "overdue",
+      created_at: f.scheduled_at,
+    });
+  }
+
+  for (const f of todayFollowUps) {
+    if (notifications.length >= 6) break;
+    if (!notifications.some((n) => n.id === "notif-f-" + f.id)) {
+      notifications.push({
+        id: "notif-f-" + f.id,
+        title: `Due Today: ${f.lead?.client?.name || "Client"}`,
+        description: f.notes || `Scheduled follow-up due today via ${f.contact_method}.`,
+        leadId: f.lead_id,
+        type: "due_today",
+        created_at: f.scheduled_at,
+      });
+    }
+  }
+
+  for (const b of bookings) {
+    if (notifications.length >= 8) break;
+    if (!b.advance_paid_at && (b.advance_amount || 0) > 0) {
+      notifications.push({
+        id: "notif-b-" + b.id,
+        title: `Pending Advance: ${b.lead?.client?.name || "Client"}`,
+        description: `₹${(b.advance_amount || 0).toLocaleString("en-IN")} advance token unpaid for confirmed shoot.`,
+        leadId: b.lead_id,
+        type: "pending_advance",
+        created_at: b.created_at,
+      });
+    }
+  }
+
+  return notifications;
 }
