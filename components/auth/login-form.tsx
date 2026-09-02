@@ -62,8 +62,9 @@ export function LoginForm({
           toast.success("Welcome back, Bruno Sangeeth!", {
             description: "Signed in successfully to Dlight Studios CRM.",
           });
-          router.push(redirectUrl);
-          router.refresh();
+          setTimeout(() => {
+            window.location.href = redirectUrl;
+          }, 350);
           return;
         }
 
@@ -75,8 +76,9 @@ export function LoginForm({
         toast.success("Welcome back!", {
           description: `Signed in as ${data.user?.email || email}`,
         });
-        router.push(redirectUrl);
-        router.refresh();
+        setTimeout(() => {
+          window.location.href = redirectUrl;
+        }, 350);
       }
     } catch (err: any) {
       const isMasterAdmin =
@@ -88,8 +90,9 @@ export function LoginForm({
         toast.success("Welcome back, Bruno Sangeeth!", {
           description: "Signed in successfully to Dlight Studios CRM.",
         });
-        router.push(redirectUrl);
-        router.refresh();
+        setTimeout(() => {
+          window.location.href = redirectUrl;
+        }, 350);
         return;
       }
 
