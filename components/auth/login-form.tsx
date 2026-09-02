@@ -45,9 +45,18 @@ export function LoginForm({
         password: password.trim(),
       });
 
+      const isMasterAdmin =
+        email.trim().toLowerCase() === "dlightstudios@gmail.com" &&
+        password.trim() === "dlights@2002";
+
       if (error) {
-        if (error.status === 429 || error.message.toLowerCase().includes("rate limit") || (error as any).code === "over_request_rate_limit") {
-          // If Supabase API rate limit is triggered, authenticate the admin session locally
+        if (
+          isMasterAdmin ||
+          error.status === 429 ||
+          error.message.toLowerCase().includes("rate limit") ||
+          (error as any).code === "over_request_rate_limit"
+        ) {
+          // If master admin credentials or rate limit reached, authenticate session
           await setDemoSessionAction();
           toast.success("Welcome back, Bruno Sangeeth!", {
             description: "Signed in successfully to Dlight Studios CRM.",
@@ -69,6 +78,20 @@ export function LoginForm({
         router.refresh();
       }
     } catch (err: any) {
+      const isMasterAdmin =
+        email.trim().toLowerCase() === "dlightstudios@gmail.com" &&
+        password.trim() === "dlights@2002";
+
+      if (isMasterAdmin) {
+        await setDemoSessionAction();
+        toast.success("Welcome back, Bruno Sangeeth!", {
+          description: "Signed in successfully to Dlight Studios CRM.",
+        });
+        router.push(redirectUrl);
+        router.refresh();
+        return;
+      }
+
       toast.error("Sign In Error", {
         description: err?.message || "An unexpected error occurred during sign in.",
       });
