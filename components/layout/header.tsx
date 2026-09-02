@@ -178,11 +178,15 @@ export function Header({ user, profile }: HeaderProps) {
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={async () => {
-                const { createClient } = await import("@/utils/supabase/client");
-                const { clearDemoSessionAction } = await import("@/lib/auth-actions");
-                const supabase = createClient();
-                await supabase.auth.signOut();
-                await clearDemoSessionAction();
+                try {
+                  const { createClient } = await import("@/utils/supabase/client");
+                  const supabase = createClient();
+                  await supabase.auth.signOut().catch(() => {});
+                } catch {}
+                try {
+                  const { clearDemoSessionAction } = await import("@/lib/auth-actions");
+                  await clearDemoSessionAction();
+                } catch {}
                 window.location.href = "/login";
               }}
               className="cursor-pointer text-destructive focus:text-destructive"

@@ -18,6 +18,13 @@ export async function setDemoSessionAction() {
 
 export async function clearDemoSessionAction() {
   const cookieStore = await cookies();
+  cookieStore.set("crm_demo_session", "", {
+    path: "/",
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 0,
+    sameSite: "lax",
+  });
   cookieStore.delete("crm_demo_session");
   revalidatePath("/", "layout");
   return { success: true };

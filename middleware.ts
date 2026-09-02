@@ -20,19 +20,15 @@ export async function middleware(request: NextRequest) {
   const demoCookie = request.cookies.get('crm_demo_session')?.value;
   const isDemoAuthenticated = demoCookie === 'authenticated';
 
-  // Check if Supabase credentials are placeholder or default
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const isPlaceholder = !supabaseUrl || supabaseUrl.includes('YOUR_PROJECT_ID') || supabaseUrl.includes('placeholder');
-
   let user = null;
   try {
     const { data } = await supabase.auth.getUser();
-    user = data.user;
+    user = data?.user || null;
   } catch {
     user = null;
   }
 
-  const isAuthenticated = !!user || isDemoAuthenticated || isPlaceholder;
+  const isAuthenticated = !!user || isDemoAuthenticated;
   const isPublicRoute =
     pathname === '/login' ||
     pathname === '/v1/login' ||
