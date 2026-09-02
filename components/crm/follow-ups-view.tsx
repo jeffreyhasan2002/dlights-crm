@@ -258,10 +258,12 @@ export function FollowUpsView({ initialFollowUps, onFollowUpComplete }: FollowUp
                       {client?.whatsapp && (
                         <Button variant="outline" size="icon" className="h-7 w-7" asChild>
                           <a
-                            href={`https://wa.me/${client.whatsapp.replace(/[^0-9]/g, "")}`}
+                            href={`https://wa.me/${client.whatsapp.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(
+                              `Hi ${client.name || "there"}! This is Dlight Studios following up regarding your ${f.lead?.event_type || "photography"} enquiry.`
+                            )}`}
                             target="_blank"
                             rel="noreferrer"
-                            title="WhatsApp"
+                            title="WhatsApp client"
                           >
                             <MessageCircle className="h-3.5 w-3.5 text-emerald-600" />
                           </a>

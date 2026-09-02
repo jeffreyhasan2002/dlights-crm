@@ -402,7 +402,7 @@ export function LeadDetailView({ initialLead }: LeadDetailViewProps) {
             >
               <a
                 href={`https://wa.me/${client.whatsapp.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(
-                  `Hi ${client.name}! This is Bruno Sangeeth from Dlight Studios regarding your ${lead.event_type} on ${lead.event_date ? formatDate(lead.event_date) : "the upcoming date"}.`
+                  `Hi ${client.name}! This is Dlight Studios regarding your ${lead.event_type} on ${lead.event_date ? formatDate(lead.event_date) : "the upcoming date"}.`
                 )}`}
                 target="_blank"
                 rel="noreferrer"

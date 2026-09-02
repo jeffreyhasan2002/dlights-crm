@@ -136,7 +136,7 @@ export function PriorityActions({
                   </div>
 
                   <div className="flex items-center gap-1.5 shrink-0">
-                    {client?.phone && (
+                    {client && (client.phone || client.whatsapp) && (
                       <Button
                         size="icon"
                         variant="outline"
@@ -144,7 +144,9 @@ export function PriorityActions({
                         asChild
                       >
                         <a
-                          href={`https://wa.me/${client.phone.replace(/[^0-9]/g, "")}`}
+                          href={`https://wa.me/${(client.whatsapp || client.phone || "").replace(/[^0-9]/g, "")}?text=${encodeURIComponent(
+                            `Hi ${client.name || "there"}! This is Dlight Studios following up regarding your ${f.lead?.event_type || "photography"} enquiry.`
+                          )}`}
                           target="_blank"
                           rel="noreferrer"
                           title="WhatsApp client"
@@ -231,7 +233,7 @@ export function PriorityActions({
                   </div>
 
                   <div className="flex items-center gap-1.5 shrink-0">
-                    {client?.phone && (
+                    {client && (client.phone || client.whatsapp) && (
                       <Button
                         size="icon"
                         variant="outline"
@@ -239,7 +241,9 @@ export function PriorityActions({
                         asChild
                       >
                         <a
-                          href={`https://wa.me/${client.phone.replace(/[^0-9]/g, "")}`}
+                          href={`https://wa.me/${(client.whatsapp || client.phone || "").replace(/[^0-9]/g, "")}?text=${encodeURIComponent(
+                            `Hi ${client.name || "there"}! This is Dlight Studios following up regarding your ${f.lead?.event_type || "photography"} enquiry.`
+                          )}`}
                           target="_blank"
                           rel="noreferrer"
                           title="WhatsApp client"
