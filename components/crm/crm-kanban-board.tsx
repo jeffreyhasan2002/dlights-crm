@@ -142,6 +142,7 @@ export function CRMKanbanBoard({ initialLeads, onLeadStatusChange }: CRMKanbanBo
       const res = await updateLeadStatusServerAction(leadId, targetStatus);
       if (res.success) {
         toast.success(`Moved ${lead.client?.name || "lead"} to "${targetStatus}"`);
+        router.refresh();
       } else {
         toast.error("Failed to update lead status");
         setLeads(initialLeads);
@@ -167,6 +168,7 @@ export function CRMKanbanBoard({ initialLeads, onLeadStatusChange }: CRMKanbanBo
       const res = await updateLeadStatusServerAction(leadId, targetStatus);
       if (res.success) {
         toast.success(`Status updated to "${targetStatus}"`);
+        router.refresh();
       } else {
         setLeads(initialLeads);
       }

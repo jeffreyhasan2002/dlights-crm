@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { Check, Sparkles, AlertCircle } from "lucide-react";
 import { LeadStatus } from "@/types/crm";
 import { updateLeadStatusServerAction } from "@/lib/crm-actions";
@@ -21,8 +22,13 @@ interface PipelineStageStepperProps {
 }
 
 export function PipelineStageStepper({ leadId, currentStatus }: PipelineStageStepperProps) {
+  const router = useRouter();
   const [status, setStatus] = React.useState<LeadStatus>(currentStatus);
   const [isUpdating, setIsUpdating] = React.useState(false);
+
+  React.useEffect(() => {
+    setStatus(currentStatus);
+  }, [currentStatus]);
 
   const isLost = status === "Rejected / Lost";
   const currentIndex = STAGES.findIndex((s) => s.id === status);
@@ -35,6 +41,7 @@ export function PipelineStageStepper({ leadId, currentStatus }: PipelineStageSte
       const res = await updateLeadStatusServerAction(leadId, targetStage);
       if (res.success) {
         toast.success(`Pipeline stage moved to "${targetStage}"`);
+        router.refresh();
       } else {
         setStatus(currentStatus);
       }

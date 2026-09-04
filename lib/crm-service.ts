@@ -99,6 +99,48 @@ async function getAuthenticatedOwnerId(): Promise<string> {
   return memoryProfile.id;
 }
 
+async function recordSupabaseActivity(
+  supabase: any,
+  data: {
+    leadId: string;
+    clientId?: string | null;
+    ownerId?: string;
+    activityType: string;
+    title: string;
+    description: string;
+    contactMethod?: string | null;
+    clientResponse?: string | null;
+    metadata?: any;
+  }
+) {
+  try {
+    let resolvedClientId = data.clientId;
+    if (!resolvedClientId && data.leadId) {
+      const { data: l } = await supabase
+        .from("leads")
+        .select("client_id")
+        .eq("id", data.leadId)
+        .maybeSingle();
+      resolvedClientId = l?.client_id;
+    }
+    if (!resolvedClientId) return;
+    const resolvedOwnerId = data.ownerId || (await getAuthenticatedOwnerId());
+    await supabase.from("activities").insert({
+      lead_id: data.leadId,
+      client_id: resolvedClientId,
+      owner_id: resolvedOwnerId,
+      activity_type: data.activityType,
+      title: data.title,
+      description: data.description,
+      contact_method: data.contactMethod || null,
+      client_response: data.clientResponse || null,
+      metadata: data.metadata || null,
+    });
+  } catch (err) {
+    console.error("Error logging activity to Supabase:", err);
+  }
+}
+
 export const getDashboardMetrics = cache(async (): Promise<DashboardMetrics> => {
   const [leads, followUps, quotations, bookings, events, payments] = await Promise.all([
     getLeads(),
@@ -1165,10 +1207,10 @@ export async function updateLeadAction(leadId: string, data: {
         return { success: false, error: updateErr.message };
       }
 
-      await supabase.from("activities").insert({
-        lead_id: leadId,
-        owner_id: ownerId,
-        activity_type: "NOTE_ADDED",
+      await recordSupabaseActivity(supabase, {
+        leadId,
+        ownerId,
+        activityType: "NOTE_ADDED",
         title: "Lead Details Updated",
         description: `Lead information updated by studio.`,
       });
@@ -1261,10 +1303,10 @@ export async function updateLeadPostProductionAction(
       }
 
       // Log timeline activity
-      await supabase.from("activities").insert({
-        lead_id: leadId,
-        owner_id: ownerId,
-        activity_type: "NOTE_ADDED",
+      await recordSupabaseActivity(supabase, {
+        leadId,
+        ownerId,
+        activityType: "NOTE_ADDED",
         title: "Post-Production Pipeline Updated",
         description: data.status
           ? `Post-production stage updated to "${data.status}".`
@@ -1303,10 +1345,10 @@ export async function updateContactStatusAction(leadId: string, status: ContactS
         })
         .eq("id", leadId);
 
-      await supabase.from("activities").insert({
-        lead_id: leadId,
-        owner_id: ownerId,
-        activity_type: "CONTACTED",
+      await recordSupabaseActivity(supabase, {
+        leadId,
+        ownerId,
+        activityType: "CONTACTED",
         title: "Contact Status Updated",
         description: `Contact status updated to "${status}".`,
         metadata: { status },
@@ -1407,9 +1449,9 @@ export async function updateLeadStatusAction(leadId: string, status: LeadStatus)
     id: "a-" + Date.now(),
     lead_id: leadId,
     owner_id: memoryProfile.id,
-    activity_type: "STATUS_CHANGED",
-    title: "Pipeline Stage Changed",
-    description: `Pipeline stage changed to "${status}".`,
+    activity_type: status === "Negotiation" ? "NEGOTIATION_STARTED" : "STATUS_CHANGED",
+    title: status === "Negotiation" ? "Negotiation Started" : "Pipeline Stage Changed",
+    description: status === "Negotiation" ? "Custom negotiation initiated." : `Pipeline stage changed to "${status}".`,
     created_at: new Date().toISOString(),
   };
   memoryActivities.unshift(newActivity);
@@ -1424,7 +1466,7 @@ export async function updateLeadStatusAction(leadId: string, status: LeadStatus)
       const supabase = await createServerSupabase();
       const ownerId = await getAuthenticatedOwnerId();
 
-      await supabase
+      const { error: leadErr } = await supabase
         .from("leads")
         .update({
           lead_status: status,
@@ -1432,15 +1474,76 @@ export async function updateLeadStatusAction(leadId: string, status: LeadStatus)
         })
         .eq("id", leadId);
 
-      await supabase.from("activities").insert({
-        lead_id: leadId,
-        owner_id: ownerId,
-        activity_type: "STATUS_CHANGED",
-        title: "Pipeline Stage Changed",
-        description: `Pipeline stage changed to "${status}".`,
+      if (leadErr) {
+        console.error("Error updating lead status in Supabase:", leadErr);
+      }
+
+      // If moved to Accepted or Lost, complete pending follow-ups
+      if (status === "Accepted / Booked" || status === "Rejected / Lost") {
+        await supabase
+          .from("follow_ups")
+          .update({
+            completed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("lead_id", leadId)
+          .is("completed_at", null);
+      }
+
+      // If moved to Negotiation, sync any sent quotations to Negotiating
+      if (status === "Negotiation") {
+        await supabase
+          .from("quotations")
+          .update({
+            status: "Negotiating",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("lead_id", leadId)
+          .eq("status", "Sent");
+      }
+
+      // If moved to Follow-up Required, ensure a pending follow-up is scheduled
+      if (status === "Follow-up Required") {
+        const { data: existingPending } = await supabase
+          .from("follow_ups")
+          .select("id")
+          .eq("lead_id", leadId)
+          .is("completed_at", null)
+          .limit(1);
+
+        if (!existingPending || existingPending.length === 0) {
+          const scheduledAt = new Date(Date.now() + 24 * 3600000).toISOString();
+          await supabase.from("follow_ups").insert({
+            lead_id: leadId,
+            owner_id: ownerId,
+            scheduled_at: scheduledAt,
+            contact_method: "WhatsApp",
+            notes: "Follow up with client on requirements & quotation",
+          });
+          await supabase
+            .from("leads")
+            .update({
+              next_follow_up_at: scheduledAt,
+              next_action: "Follow up with client on requirements & quotation",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", leadId);
+        }
+      }
+
+      await recordSupabaseActivity(supabase, {
+        leadId,
+        ownerId,
+        activityType: status === "Negotiation" ? "NEGOTIATION_STARTED" : "STATUS_CHANGED",
+        title: status === "Negotiation" ? "Negotiation Started" : "Pipeline Stage Changed",
+        description: status === "Negotiation"
+          ? "Client negotiation initiated."
+          : `Pipeline stage changed to "${status}".`,
         metadata: { status },
       });
-    } catch {}
+    } catch (err) {
+      console.error("Error in updateLeadStatusAction:", err);
+    }
   }
 
   return { success: true };
@@ -1625,10 +1728,10 @@ export async function sendQuotationAction(quotationId: string) {
           .eq("id", dbQ.lead_id);
 
         const ownerId = await getAuthenticatedOwnerId();
-        await supabase.from("activities").insert({
-          lead_id: dbQ.lead_id,
-          owner_id: ownerId,
-          activity_type: "QUOTATION_SENT",
+        await recordSupabaseActivity(supabase, {
+          leadId: dbQ.lead_id,
+          ownerId,
+          activityType: "QUOTATION_SENT",
           title: "Quotation Sent",
           description: `Quotation ${dbQ.quotation_number} sent to client.`,
         });
@@ -1682,11 +1785,9 @@ export async function rejectQuotationAction(
           })
           .eq("id", dbQ.lead_id);
 
-        const ownerId = await getAuthenticatedOwnerId();
-        await supabase.from("activities").insert({
-          lead_id: dbQ.lead_id,
-          owner_id: ownerId,
-          activity_type: "QUOTATION_REJECTED",
+        await recordSupabaseActivity(supabase, {
+          leadId: dbQ.lead_id,
+          activityType: "QUOTATION_REJECTED",
           title: "Quotation Rejected",
           description: `Quotation marked as Rejected. ${reason ? `Reason: ${reason}` : ""}`,
         });
@@ -1735,10 +1836,10 @@ export async function startNegotiationAction(quotationId: string, notes?: string
           .eq("id", dbQ.lead_id);
 
         const ownerId = await getAuthenticatedOwnerId();
-        await supabase.from("activities").insert({
-          lead_id: dbQ.lead_id,
-          owner_id: ownerId,
-          activity_type: "NEGOTIATION_STARTED",
+        await recordSupabaseActivity(supabase, {
+          leadId: dbQ.lead_id,
+          ownerId,
+          activityType: "NEGOTIATION_STARTED",
           title: "Negotiation Started",
           description: `Custom negotiation initiated. ${notes ? `Notes: "${notes}"` : ""}`,
         });
@@ -1820,10 +1921,10 @@ export async function createQuotationAction(data: {
         })
         .eq("id", data.leadId);
 
-      await supabase.from("activities").insert({
-        lead_id: data.leadId,
-        owner_id: ownerId,
-        activity_type: "QUOTATION_CREATED",
+      await recordSupabaseActivity(supabase, {
+        leadId: data.leadId,
+        ownerId,
+        activityType: "QUOTATION_CREATED",
         title: "Quotation Created & Sent",
         description: `Quotation ${qNum} for ₹${total.toLocaleString("en-IN")} drafted and sent to client.`,
         metadata: { quotation_number: qNum, amount: total },
@@ -2067,12 +2168,14 @@ export async function completeFollowUpAction(
           })
           .eq("id", dbF.lead_id);
 
-        await supabase.from("activities").insert({
-          lead_id: dbF.lead_id,
-          owner_id: ownerId,
-          activity_type: "FOLLOW_UP",
+        await recordSupabaseActivity(supabase, {
+          leadId: dbF.lead_id,
+          ownerId,
+          activityType: "FOLLOW_UP",
           title: "Follow-up Completed",
           description: `Follow-up via ${dbF.contact_method} completed. ${clientResponse ? `Client feedback: "${clientResponse}"` : ""}`,
+          clientResponse,
+          contactMethod: dbF.contact_method,
         });
       }
     } catch (err) {
@@ -2139,16 +2242,19 @@ export async function scheduleFollowUpAction(data: {
         })
         .eq("id", data.leadId);
 
-      await supabase.from("activities").insert({
-        lead_id: data.leadId,
-        owner_id: ownerId,
-        activity_type: "FOLLOW_UP",
+      await recordSupabaseActivity(supabase, {
+        leadId: data.leadId,
+        ownerId,
+        activityType: "FOLLOW_UP",
         title: "Follow-up Scheduled",
         description: `Follow-up scheduled for ${new Date(data.scheduledAt).toLocaleDateString("en-IN")} via ${data.contactMethod}.`,
+        contactMethod: data.contactMethod,
       });
 
       if (dbF) return { success: true, followUp: dbF };
-    } catch {}
+    } catch (err) {
+      console.error("Error scheduling follow-up in Supabase:", err);
+    }
   }
 
   return { success: true, followUp: newFollowUp };
@@ -2182,10 +2288,10 @@ export async function addNoteAction(leadId: string, content: string) {
         .select()
         .single();
 
-      await supabase.from("activities").insert({
-        lead_id: leadId,
-        owner_id: ownerId,
-        activity_type: "NOTE_ADDED",
+      await recordSupabaseActivity(supabase, {
+        leadId,
+        ownerId,
+        activityType: "NOTE_ADDED",
         title: "Note Added",
         description: `Note logged: "${content.substring(0, 60)}${content.length > 60 ? "..." : ""}"`,
       });
@@ -2253,12 +2359,14 @@ export async function logCommunicationAction(data: {
         })
         .eq("id", data.leadId);
 
-      await supabase.from("activities").insert({
-        lead_id: data.leadId,
-        owner_id: ownerId,
-        activity_type: "CONTACTED",
+      await recordSupabaseActivity(supabase, {
+        leadId: data.leadId,
+        ownerId,
+        activityType: "CONTACTED",
         title: "Communication Logged",
         description: `${data.direction} ${data.contactMethod} message recorded.`,
+        contactMethod: data.contactMethod,
+        clientResponse: data.clientResponse,
       });
 
       if (dbC) return { success: true, communication: dbC };

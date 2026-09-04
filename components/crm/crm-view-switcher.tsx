@@ -44,12 +44,20 @@ export function CRMViewSwitcher({
   const router = useRouter();
   const searchParams = useSearchParams();
   const rawTab = searchParams?.get("view") || defaultView;
-  const activeTab = rawTab === "kanban" ? "tracking" : rawTab;
+  const initialActiveTab = rawTab === "kanban" ? "tracking" : rawTab;
+  const [activeTab, setActiveTab] = useState<string>(initialActiveTab);
 
   const [leads, setLeads] = useState<LeadWithDetails[]>(serverLeads);
   const [followUps, setFollowUps] = useState<FollowUp[]>(serverFollowUps);
   const [quotations, setQuotations] = useState<Quotation[]>(serverQuotations);
   const [bookings, setBookings] = useState<Booking[]>(serverBookings);
+
+  // Keep activeTab synchronized with searchParams
+  useEffect(() => {
+    const raw = searchParams?.get("view") || defaultView;
+    const normalized = raw === "kanban" ? "tracking" : raw;
+    setActiveTab(normalized);
+  }, [searchParams, defaultView]);
 
   // Keep state synchronized with server props
   useEffect(() => {
@@ -73,6 +81,15 @@ export function CRMViewSwitcher({
     setLeads((prev) =>
       prev.map((l) => (l.id === leadId ? { ...l, lead_status: targetStatus } : l))
     );
+
+    // If deal is moved to Negotiation, also update any quotation to Negotiating
+    if (targetStatus === "Negotiation") {
+      setQuotations((prev) =>
+        prev.map((q) =>
+          q.lead_id === leadId && q.status === "Sent" ? { ...q, status: "Negotiating" } : q
+        )
+      );
+    }
 
     // If deal is accepted or lost, automatically complete pending follow-ups for this lead
     if (targetStatus === "Accepted / Booked" || targetStatus === "Rejected / Lost") {
@@ -168,6 +185,7 @@ export function CRMViewSwitcher({
   };
 
   const handleTabChange = (view: string) => {
+    setActiveTab(view);
     const params = new URLSearchParams(searchParams?.toString() || "");
     if (view === "all") {
       params.delete("view");
@@ -175,7 +193,7 @@ export function CRMViewSwitcher({
       params.set("view", view);
     }
     const queryString = params.toString();
-    router.push(`/crm${queryString ? `?${queryString}` : ""}`);
+    router.push(`/crm${queryString ? `?${queryString}` : ""}`, { scroll: false });
   };
 
   // Enrich leads with latest real-time followUps, quotations, and bookings

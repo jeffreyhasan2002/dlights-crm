@@ -18,10 +18,22 @@ export function NegotiationsView({ leads }: NegotiationsViewProps) {
     <div className="space-y-4">
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
         {negotiatingLeads.length === 0 ? (
-          <div className="col-span-full rounded-xl border border-dashed p-12 text-center text-sm text-muted-foreground">
-            <MessageSquareQuote className="h-10 w-10 mx-auto mb-2 opacity-40" />
-            <p className="font-semibold text-foreground text-base">No active negotiations</p>
-            <p className="text-xs mt-1">Clients currently negotiating custom rates will appear here.</p>
+          <div className="col-span-full rounded-xl border border-dashed p-12 text-center text-sm text-muted-foreground space-y-3">
+            <MessageSquareQuote className="h-10 w-10 mx-auto opacity-40 text-purple-600" />
+            <div>
+              <p className="font-semibold text-foreground text-base">No active negotiations</p>
+              <p className="text-xs mt-1">
+                Clients currently negotiating custom rates and deliverables will appear here.
+              </p>
+            </div>
+            <div className="pt-2 flex justify-center">
+              <Button asChild size="sm" variant="outline" className="gap-1.5 text-xs">
+                <Link href="/crm?view=tracking">
+                  <span>Open Client Tracking Board</span>
+                  <ArrowUpRight className="h-3.5 w-3.5" />
+                </Link>
+              </Button>
+            </div>
           </div>
         ) : (
           negotiatingLeads.map((lead) => {
