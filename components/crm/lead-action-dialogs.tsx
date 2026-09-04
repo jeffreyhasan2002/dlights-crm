@@ -384,11 +384,11 @@ export function LeadActionDialogs({ lead, singleAction, trigger, className }: Le
 
       {/* Full Quick Action Button Group */}
       {!singleAction && (
-        <div className={className || "flex items-center gap-1.5 flex-nowrap"}>
+        <div className={className || "flex items-center gap-2 flex-nowrap"}>
           <Button
             size="sm"
             variant="outline"
-            className="gap-1.5 text-xs h-8 px-2.5 font-medium shrink-0 bg-background hover:bg-muted"
+            className="gap-1.5 text-xs h-8 px-3 font-medium shrink-0 bg-background/90 hover:bg-muted rounded-lg border-border/80 shadow-2xs text-foreground transition-colors"
             onClick={() => setStageOpen(true)}
           >
             <SlidersHorizontal className="h-3.5 w-3.5 text-indigo-500" />
@@ -398,7 +398,7 @@ export function LeadActionDialogs({ lead, singleAction, trigger, className }: Le
           <Button
             size="sm"
             variant="outline"
-            className="gap-1.5 text-xs h-8 px-2.5 font-medium shrink-0 bg-background hover:bg-muted"
+            className="gap-1.5 text-xs h-8 px-3 font-medium shrink-0 bg-background/90 hover:bg-muted rounded-lg border-border/80 shadow-2xs text-foreground transition-colors"
             onClick={() => setFollowUpOpen(true)}
           >
             <Clock className="h-3.5 w-3.5 text-amber-500" />
@@ -408,7 +408,7 @@ export function LeadActionDialogs({ lead, singleAction, trigger, className }: Le
           <Button
             size="sm"
             variant="outline"
-            className="gap-1.5 text-xs h-8 px-2.5 font-medium shrink-0 bg-background hover:bg-muted"
+            className="gap-1.5 text-xs h-8 px-3 font-medium shrink-0 bg-background/90 hover:bg-muted rounded-lg border-border/80 shadow-2xs text-foreground transition-colors"
             onClick={() => setCommOpen(true)}
           >
             <Phone className="h-3.5 w-3.5 text-sky-500" />
@@ -418,7 +418,7 @@ export function LeadActionDialogs({ lead, singleAction, trigger, className }: Le
           <Button
             size="sm"
             variant="outline"
-            className="gap-1.5 text-xs h-8 px-2.5 font-medium shrink-0 bg-background hover:bg-muted"
+            className="gap-1.5 text-xs h-8 px-3 font-medium shrink-0 bg-background/90 hover:bg-muted rounded-lg border-border/80 shadow-2xs text-foreground transition-colors"
             onClick={() => setQuoteOpen(true)}
           >
             <FileText className="h-3.5 w-3.5 text-purple-500" />
@@ -428,7 +428,7 @@ export function LeadActionDialogs({ lead, singleAction, trigger, className }: Le
           <Button
             size="sm"
             variant="outline"
-            className="gap-1.5 text-xs h-8 px-2.5 font-medium shrink-0 bg-background hover:bg-muted"
+            className="gap-1.5 text-xs h-8 px-3 font-medium shrink-0 bg-background/90 hover:bg-muted rounded-lg border-border/80 shadow-2xs text-foreground transition-colors"
             onClick={() => setPaymentOpen(true)}
           >
             <CreditCard className="h-3.5 w-3.5 text-emerald-500" />
@@ -438,7 +438,7 @@ export function LeadActionDialogs({ lead, singleAction, trigger, className }: Le
           <Button
             size="sm"
             variant="outline"
-            className="gap-1.5 text-xs h-8 px-2.5 font-medium shrink-0 bg-background hover:bg-muted"
+            className="gap-1.5 text-xs h-8 px-3 font-medium shrink-0 bg-background/90 hover:bg-muted rounded-lg border-border/80 shadow-2xs text-foreground transition-colors"
             onClick={() => setNoteOpen(true)}
           >
             <StickyNote className="h-3.5 w-3.5 text-amber-500" />

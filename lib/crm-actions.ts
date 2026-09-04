@@ -15,6 +15,7 @@ import {
   startNegotiationAction,
   recordPaymentAction,
   createEventAction,
+  updateEventAction,
   addNoteAction,
   logCommunicationAction,
   scheduleFollowUpAction,
@@ -121,6 +122,23 @@ export async function updateLeadServerAction(
   revalidatePath(`/crm/${leadId}`);
   revalidatePath("/clients");
   revalidatePath("/expense-calculator");
+  return res;
+}
+
+export async function updateEventServerAction(eventId: string, data: {
+  eventName: string;
+  eventType: string;
+  customEventType?: string;
+  eventDate: string;
+  startTime?: string;
+  endTime?: string;
+  location?: string;
+  requirements?: string[];
+  otherRequirement?: string;
+}) {
+  const res = await updateEventAction(eventId, data);
+  revalidatePath("/dashboard");
+  revalidatePath("/crm");
   return res;
 }
 

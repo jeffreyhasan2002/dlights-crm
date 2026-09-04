@@ -2979,6 +2979,66 @@ export async function createEventAction(data: {
   return { success: true, event };
 }
 
+export async function updateEventAction(eventId: string, data: {
+  eventName: string;
+  eventType: string;
+  customEventType?: string;
+  eventDate: string;
+  startTime?: string;
+  endTime?: string;
+  location?: string;
+  requirements?: string[];
+  otherRequirement?: string;
+}) {
+  const updatedAt = new Date().toISOString();
+  const existingEvent = memoryEvents.find((event) => event.id === eventId);
+  if (existingEvent) {
+    Object.assign(existingEvent, {
+      event_name: data.eventName,
+      event_type: data.eventType,
+      custom_event_type: data.customEventType || null,
+      event_date: data.eventDate,
+      start_time: data.startTime || null,
+      end_time: data.endTime || null,
+      location: data.location || null,
+      requirements: data.requirements || [],
+      other_requirement: data.otherRequirement || null,
+      updated_at: updatedAt,
+    });
+  }
+
+  const live = await isSupabaseLive();
+  if (live) {
+    try {
+      const supabase = await createServerSupabase();
+      const baseUpdate = {
+        event_name: data.eventName,
+        event_type: data.eventType,
+        custom_event_type: data.customEventType || null,
+        event_date: data.eventDate,
+        start_time: data.startTime || null,
+        end_time: data.endTime || null,
+        location: data.location || null,
+        updated_at: updatedAt,
+      };
+      const withDeliverables = {
+        ...baseUpdate,
+        requirements: data.requirements || [],
+        other_requirement: data.otherRequirement || null,
+      };
+      const { error } = await supabase.from("events").update(withDeliverables).eq("id", eventId);
+      if (error) {
+        const { error: fallbackError } = await supabase.from("events").update(baseUpdate).eq("id", eventId);
+        if (fallbackError) return { success: false, error: fallbackError.message };
+      }
+    } catch (error: any) {
+      return { success: false, error: error?.message || "Database error" };
+    }
+  }
+
+  return { success: true };
+}
+
 // ----------------------------------------------------------------------------
 // DELIVERABLES ACTIONS (DYNAMIC & PERSISTENT)
 // ----------------------------------------------------------------------------

@@ -127,6 +127,7 @@ import { PipelineStageStepper } from "@/components/crm/pipeline-stage-stepper";
 import { PostProductionTracker } from "@/components/crm/post-production-tracker";
 import { RecordPaymentDialog } from "@/components/payments/record-payment-dialog";
 import { WhatsAppPaymentReminderDialog } from "@/components/payments/whatsapp-payment-reminder-dialog";
+import { EditEventDialog } from "@/components/crm/edit-event-dialog";
 import {
   addNoteServerAction,
   logCommunicationServerAction,
@@ -158,11 +159,25 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
   const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 200);
+    const handleScroll = (e?: any) => {
+      const mainEl = document.querySelector("main");
+      const currentScroll =
+        window.scrollY ||
+        (typeof e?.target?.scrollTop === "number" ? e.target.scrollTop : 0) ||
+        (mainEl?.scrollTop ?? 0);
+      setIsScrolled(currentScroll > 180);
     };
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
+    window.addEventListener("scroll", handleScroll, { passive: true, capture: true });
+    const mainEl = document.querySelector("main");
+    if (mainEl) {
+      mainEl.addEventListener("scroll", handleScroll, { passive: true });
+    }
+    return () => {
+      window.removeEventListener("scroll", handleScroll, { capture: true } as any);
+      if (mainEl) {
+        mainEl.removeEventListener("scroll", handleScroll);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -751,54 +766,59 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
   };
 
   return (
-    <div className="min-h-screen bg-white dark:bg-background pb-24 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 pt-5">
-      <div className="mx-auto w-full max-w-[1480px] space-y-7">
+    <div className="min-h-screen bg-background pb-24 -mx-4 md:-mx-6 lg:-mx-8 px-4 md:px-6 lg:px-8 pt-1 sm:pt-3">
+      <div className="mx-auto w-full max-w-[1480px] space-y-6 sm:space-y-7">
         {/* COMPACT STICKY CLIENT HEADER (Reveals smoothly on scroll on desktop) */}
         <div
-          className={`fixed top-0 left-0 right-0 z-40 border-b bg-background/95 backdrop-blur-md transition-all duration-200 shadow-[0_1px_2px_rgba(15,23,42,0.05)] ${
+          className={`fixed top-0 left-0 md:left-64 right-0 z-40 border-b bg-background/95 backdrop-blur-md transition-all duration-200 shadow-xs ${
             isScrolled
               ? "translate-y-0 opacity-100"
               : "-translate-y-full opacity-0 pointer-events-none"
           }`}
         >
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-13 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <span className="font-bold text-sm sm:text-base text-slate-900 dark:text-slate-100 truncate">
-                {client.name}
-              </span>
-              <Badge
-                variant="outline"
-                className="text-[10px] px-2 py-0 hidden sm:inline-flex bg-muted/40 font-medium"
-              >
-                {lead.event_type || "Event"}
-              </Badge>
-              <Badge
-                variant={
-                  lead.lead_status === "Accepted / Booked"
-                    ? "success"
-                    : lead.lead_status === "Rejected / Lost"
-                      ? "destructive"
-                      : lead.lead_status === "Negotiation"
-                        ? "purple"
-                        : "default"
-                }
-                className="text-[10px] px-2 py-0 font-semibold"
-              >
-                {lead.lead_status}
-              </Badge>
-              {lead.event_date && (
-                <span className="text-xs text-slate-500 dark:text-slate-400 hidden md:inline-flex items-center gap-1 font-medium">
-                  <Calendar className="h-3 w-3 text-slate-500 dark:text-slate-400" />
-                  <span>{formatDate(lead.event_date)}</span>
+          <div className="max-w-[1480px] mx-auto px-4 md:px-6 lg:px-8 h-14 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="h-8 w-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold text-xs shrink-0 select-none">
+                {getInitials(client.name)}
+              </div>
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="font-bold text-sm text-foreground truncate">
+                  {client.name}
                 </span>
-              )}
+                <Badge
+                  variant="outline"
+                  className="text-[10px] px-2 py-0 hidden sm:inline-flex bg-muted/40 font-medium"
+                >
+                  {lead.event_type || "Event"}
+                </Badge>
+                <Badge
+                  variant={
+                    lead.lead_status === "Accepted / Booked"
+                      ? "success"
+                      : lead.lead_status === "Rejected / Lost"
+                        ? "destructive"
+                        : lead.lead_status === "Negotiation"
+                          ? "purple"
+                          : "default"
+                  }
+                  className="text-[10px] px-2 py-0 font-semibold"
+                >
+                  {lead.lead_status}
+                </Badge>
+                {lead.event_date && (
+                  <span className="text-xs text-muted-foreground hidden md:inline-flex items-center gap-1 font-medium">
+                    <Calendar className="h-3 w-3 text-muted-foreground" />
+                    <span>{formatDate(lead.event_date)}</span>
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
               {client.whatsapp && (
                 <Button
                   size="sm"
-                  className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1.5 shadow-[0_1px_2px_rgba(15,23,42,0.05)]"
+                  className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1.5 shadow-2xs rounded-lg"
                   asChild
                 >
                   <a
@@ -823,7 +843,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-7 text-xs gap-1 border-emerald-500/30 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                      className="h-8 text-xs gap-1.5 border-emerald-500/30 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 rounded-lg shadow-2xs"
                     >
                       <CreditCard className="h-3.5 w-3.5" />
                       <span className="hidden sm:inline">Payment</span>
@@ -838,7 +858,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-7 text-xs gap-1"
+                    className="h-8 text-xs gap-1.5 rounded-lg shadow-2xs"
                   >
                     <Edit3 className="h-3.5 w-3.5" />
                     <span className="hidden sm:inline">Edit</span>
@@ -849,8 +869,12 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 text-xs px-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-slate-100"
-                onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+                className="h-8 text-xs px-2.5 text-muted-foreground hover:text-foreground rounded-lg"
+                onClick={() => {
+                  const mainEl = document.querySelector("main");
+                  if (mainEl) mainEl.scrollTo({ top: 0, behavior: "smooth" });
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}
                 title="Scroll to top"
               >
                 <span>↑ Top</span>
@@ -859,72 +883,121 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
           </div>
         </div>
 
-        {/* 1. TOP BREADCRUMB NAVIGATION */}
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbLink
-                  href="/dashboard"
-                  className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-slate-100"
-                >
-                  Dashboard
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbLink
-                  href="/crm"
-                  className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-slate-100"
-                >
-                  Client CRM
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbPage className="text-xs font-semibold text-slate-900 dark:text-slate-100">
-                  {client.name}
-                </BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-
-          <div className="flex items-center gap-2">
+        {/* 1. TOP BREADCRUMB & CONTEXT NAVIGATION BAR */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2.5 flex-wrap min-w-0">
             <Button
               asChild
               size="sm"
-              variant="ghost"
-              className="h-8 px-2.5 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-slate-100"
+              variant="outline"
+              className="h-8 px-3 text-xs font-medium bg-background hover:bg-muted/80 border-border/80 rounded-lg shadow-2xs gap-1.5 transition-all hover:-translate-x-0.5 text-foreground shrink-0"
             >
               <Link href="/crm">
-                <ArrowLeft className="h-3.5 w-3.5 mr-1" />
-                <span>Back to CRM</span>
+                <ArrowLeft className="h-3.5 w-3.5 text-muted-foreground" />
+                <span>Back to Pipeline</span>
               </Link>
+            </Button>
+
+            <div className="hidden sm:block h-3.5 w-px bg-border/80 shrink-0" aria-hidden="true" />
+
+            <Breadcrumb>
+              <BreadcrumbList className="text-xs">
+                <BreadcrumbItem>
+                  <BreadcrumbLink
+                    href="/dashboard"
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Dashboard
+                  </BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  <BreadcrumbLink
+                    href="/crm"
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Client CRM
+                  </BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  <BreadcrumbPage className="font-semibold text-foreground max-w-[200px] truncate">
+                    {client.name}
+                  </BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
+
+            <Badge
+              variant="outline"
+              className="hidden md:inline-flex text-[10px] font-mono px-2 py-0.5 bg-muted/30 border-border/60 text-muted-foreground"
+            >
+              #{lead.id.slice(0, 8).toUpperCase()}
+            </Badge>
+          </div>
+
+          <div className="flex items-center gap-2 self-start sm:self-center text-xs text-muted-foreground">
+            {lead.created_at && (
+              <span className="hidden lg:inline-flex items-center gap-1.5 text-muted-foreground text-[11px] bg-muted/30 px-2.5 py-1 rounded-md border border-border/40">
+                <Calendar className="h-3 w-3 opacity-70" />
+                <span>Enquiry Logged {formatDate(lead.created_at)}</span>
+              </span>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground gap-1.5 rounded-lg border-border/80 bg-background shadow-2xs"
+              onClick={() => copyToClipboard(window.location.href, "Lead Link")}
+              title="Copy Lead Link"
+            >
+              {copiedField === "Lead Link" ? (
+                <>
+                  <Check className="h-3.5 w-3.5 text-emerald-500" />
+                  <span className="text-emerald-600 font-medium">Copied Link</span>
+                </>
+              ) : (
+                <>
+                  <Share2 className="h-3.5 w-3.5" />
+                  <span>Share</span>
+                </>
+              )}
             </Button>
           </div>
         </div>
 
         {/* 2. EXECUTIVE CLIENT HERO HEADER */}
-        <div className="relative">
+        <div className="relative overflow-hidden rounded-2xl border border-border/80 bg-card text-card-foreground p-5 sm:p-7 shadow-xs backdrop-blur-xs space-y-6">
+          {/* Subtle Ambient Accents */}
           <div
-            className="absolute -left-px top-7 bottom-7 w-0.5 rounded-full bg-slate-400"
+            className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-primary/5 blur-3xl"
             aria-hidden="true"
           />
-          <div className="relative overflow-hidden rounded-[22px] border border-slate-200 bg-white p-5 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_10px_30px_rgba(15,23,42,0.04)] space-y-5">
-            {/* Tier 1: Client Identity & Primary Contact CTAs */}
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-              {/* Client Identity Block */}
-              <div className="space-y-2 min-w-0">
+          <div
+            className="pointer-events-none absolute -left-24 -bottom-24 h-64 w-64 rounded-full bg-emerald-500/5 blur-3xl"
+            aria-hidden="true"
+          />
+
+          {/* Tier 1: Client Identity & Primary Contact CTAs */}
+          <div className="relative flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5 sm:gap-6">
+            {/* Client Identity Block */}
+            <div className="flex items-start gap-4 sm:gap-5 min-w-0 flex-1">
+              {/* Executive Client Monogram Box */}
+              <div className="h-14 w-14 sm:h-16 sm:w-16 rounded-2xl bg-gradient-to-br from-primary/15 via-primary/10 to-primary/5 border border-primary/20 flex items-center justify-center text-primary font-bold text-lg sm:text-xl shrink-0 shadow-2xs select-none">
+                {getInitials(client.name)}
+              </div>
+
+              <div className="space-y-2.5 min-w-0 flex-1">
                 {/* Title & Status Badges */}
                 <div className="flex items-center gap-2.5 flex-wrap">
-                  <h1 className="text-2xl sm:text-[2.15rem] font-semibold tracking-[-0.035em] text-slate-900 dark:text-slate-100 truncate">
+                  <h1 className="text-2xl sm:text-[2rem] font-bold tracking-tight text-foreground truncate">
                     {client.name}
                   </h1>
                   <Badge
                     variant="outline"
-                    className="font-medium text-xs px-2 py-0.5 bg-muted/30"
+                    className="font-semibold text-xs px-2.5 py-0.5 bg-muted/40 border-border/80 text-foreground inline-flex items-center gap-1.5"
                   >
-                    {lead.event_type || "Event"}
+                    <Camera className="h-3 w-3 text-muted-foreground" />
+                    <span>{lead.event_type || "Event"}</span>
                   </Badge>
                   <Badge
                     variant={
@@ -943,7 +1016,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                   {displayedEvents.length > 1 && (
                     <Badge
                       variant="secondary"
-                      className="text-xs font-medium bg-muted/60 text-slate-900 dark:text-slate-100"
+                      className="text-xs font-medium bg-muted/60 text-foreground"
                     >
                       {displayedEvents.length} Ceremonies
                     </Badge>
@@ -951,35 +1024,36 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                   {getEventDaysLeft() && (
                     <Badge
                       variant="outline"
-                      className="text-xs font-medium text-slate-500 dark:text-slate-400"
+                      className="text-xs font-medium text-muted-foreground border-border/70 inline-flex items-center gap-1"
                     >
-                      {getEventDaysLeft()}
+                      <Clock className="h-3 w-3 text-muted-foreground" />
+                      <span>{getEventDaysLeft()}</span>
                     </Badge>
                   )}
                   {lead.source && (
-                    <span className="text-xs text-slate-500 dark:text-slate-400">
+                    <span className="text-xs text-muted-foreground inline-flex items-center gap-1 bg-muted/30 px-2 py-0.5 rounded-md border border-border/40">
                       Source:{" "}
-                      <strong className="text-slate-900 dark:text-slate-100 font-medium">
+                      <strong className="text-foreground font-medium">
                         {lead.source}
                       </strong>
                     </span>
                   )}
                 </div>
 
-                {/* Subtitle Contact & Location Info */}
-                <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
+                {/* Subtitle Contact & Location Info Pills */}
+                <div className="flex flex-wrap items-center gap-2.5 text-xs">
                   {client.phone && (
-                    <div className="inline-flex items-center gap-1.5 text-slate-900 dark:text-slate-100 font-medium bg-muted/30 px-2.5 py-1 rounded-md border border-slate-200">
-                      <Phone className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
+                    <div className="inline-flex items-center gap-2 text-foreground font-medium bg-muted/40 hover:bg-muted/70 px-3 py-1.5 rounded-lg border border-border/60 transition-colors shadow-2xs">
+                      <Phone className="h-3.5 w-3.5 text-sky-500 shrink-0" />
                       <a
                         href={`tel:${client.phone}`}
-                        className="hover:underline"
+                        className="hover:underline tracking-tight"
                       >
                         {client.phone}
                       </a>
                       <button
                         onClick={() => copyToClipboard(client.phone!, "Phone")}
-                        className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-slate-100 opacity-60 hover:opacity-100 transition-opacity ml-0.5"
+                        className="text-muted-foreground hover:text-foreground opacity-70 hover:opacity-100 transition-opacity ml-0.5 p-0.5"
                         title="Copy Phone"
                         aria-label="Copy Phone"
                       >
@@ -993,17 +1067,17 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                   )}
 
                   {client.email && (
-                    <div className="inline-flex items-center gap-1.5 text-slate-500 dark:text-slate-400 bg-muted/30 px-2.5 py-1 rounded-md border border-slate-200">
-                      <Mail className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
+                    <div className="inline-flex items-center gap-2 text-foreground font-medium bg-muted/40 hover:bg-muted/70 px-3 py-1.5 rounded-lg border border-border/60 transition-colors shadow-2xs">
+                      <Mail className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
                       <a
                         href={`mailto:${client.email}`}
-                        className="hover:underline text-slate-900 dark:text-slate-100"
+                        className="hover:underline max-w-[190px] sm:max-w-none truncate"
                       >
                         {client.email}
                       </a>
                       <button
                         onClick={() => copyToClipboard(client.email!, "Email")}
-                        className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-slate-100 opacity-60 hover:opacity-100 transition-opacity ml-0.5"
+                        className="text-muted-foreground hover:text-foreground opacity-70 hover:opacity-100 transition-opacity ml-0.5 p-0.5"
                         title="Copy Email"
                         aria-label="Copy Email"
                       >
@@ -1021,114 +1095,117 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                       href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(client.location)}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 text-slate-900 dark:text-slate-100 bg-muted/30 px-2.5 py-1 rounded-md border border-slate-200 hover:border-border transition-colors"
+                      className="inline-flex items-center gap-2 text-foreground font-medium bg-muted/40 hover:bg-muted/70 px-3 py-1.5 rounded-lg border border-border/60 transition-colors shadow-2xs"
                       title="Open Venue in Google Maps"
                     >
-                      <MapPin className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
-                      <span className="truncate max-w-[200px]">
+                      <MapPin className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                      <span className="truncate max-w-[220px]">
                         {client.location}
                       </span>
-                      <ExternalLink className="h-2.5 w-2.5 opacity-50" />
+                      <ExternalLink className="h-3 w-3 opacity-50 ml-0.5" />
                     </a>
                   )}
                 </div>
               </div>
-
-              {/* Primary Top Action Buttons */}
-              <div className="flex items-center gap-2 self-start lg:self-center shrink-0 flex-wrap">
-                {client.whatsapp && (
-                  <Button
-                    size="sm"
-                    className="gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium h-8"
-                    asChild
-                  >
-                    <a
-                      href={`https://wa.me/${client.whatsapp.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(
-                        `Hi ${client.name}! This is ${profile?.business_name || "Dlight Studios"} regarding your ${lead.event_type} photography package.`,
-                      )}`}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      <MessageCircle className="h-4 w-4" />
-                      <span>WhatsApp Chat</span>
-                    </a>
-                  </Button>
-                )}
-
-                <EditLeadDialog
-                  lead={lead}
-                  trigger={
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-1.5 text-xs h-8 font-medium bg-background hover:bg-muted"
-                    >
-                      <Edit3 className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
-                      <span>Edit Details</span>
-                    </Button>
-                  }
-                />
-
-                {/* Direct Visible Delete Lead Button */}
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-1.5 text-xs h-8 font-medium text-destructive hover:bg-destructive/10 hover:text-destructive border-border/80"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                      <span>Delete</span>
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle className="text-destructive flex items-center gap-2">
-                        <Trash2 className="h-5 w-5" />
-                        Delete Enquiry & Lead Record?
-                      </AlertDialogTitle>
-                      <AlertDialogDescription className="space-y-2 text-xs">
-                        <p>
-                          Are you sure you want to permanently delete{" "}
-                          <strong className="text-slate-900 dark:text-slate-100">
-                            {client.name}
-                          </strong>{" "}
-                          ({lead.event_type})?
-                        </p>
-                        <p className="text-destructive font-medium">
-                          This action will permanently delete all quotations,
-                          booking agreements, payments, timeline activity, and
-                          client notes linked to this lead.
-                        </p>
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel disabled={isDeleting}>
-                        Cancel
-                      </AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={handleDeleteLead}
-                        disabled={isDeleting}
-                        className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-                      >
-                        {isDeleting ? "Deleting..." : "Permanently Delete"}
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </div>
             </div>
 
-            {/* Tier 2: Dedicated Quick Actions Command Strip */}
-            <div className="pt-3 border-t border-slate-200">
-              <div className="flex items-center gap-2 overflow-x-auto scrollbar-none py-0.5 w-full flex-nowrap">
-                <span className="text-xs font-medium text-slate-500 dark:text-slate-400 shrink-0 mr-1 hidden sm:inline">
-                  Actions:
-                </span>
+            {/* Primary Top Action Buttons */}
+            <div className="flex items-center gap-2.5 self-start lg:self-center shrink-0 flex-wrap">
+              {client.whatsapp && (
+                <Button
+                  size="sm"
+                  className="gap-2 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold h-9 px-4 rounded-lg shadow-2xs transition-all hover:shadow-xs active:scale-[0.98]"
+                  asChild
+                >
+                  <a
+                    href={`https://wa.me/${client.whatsapp.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(
+                      `Hi ${client.name}! This is ${profile?.business_name || "Dlight Studios"} regarding your ${lead.event_type} photography package.`,
+                    )}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    <span>WhatsApp Chat</span>
+                  </a>
+                </Button>
+              )}
 
+              <EditLeadDialog
+                lead={lead}
+                trigger={
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 text-xs h-9 px-3.5 font-medium rounded-lg border-border/80 bg-background/80 hover:bg-muted/80 shadow-2xs text-foreground"
+                  >
+                    <Edit3 className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span>Edit Details</span>
+                  </Button>
+                }
+              />
+
+              {/* Direct Visible Delete Lead Button */}
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 text-xs h-9 px-3 font-medium text-destructive hover:bg-destructive/10 hover:text-destructive border-border/80 rounded-lg shadow-2xs"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span>Delete</span>
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="text-destructive flex items-center gap-2">
+                      <Trash2 className="h-5 w-5" />
+                      Delete Enquiry & Lead Record?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription className="space-y-2 text-xs">
+                      <p>
+                        Are you sure you want to permanently delete{" "}
+                        <strong className="text-foreground font-semibold">
+                          {client.name}
+                        </strong>{" "}
+                        ({lead.event_type})?
+                      </p>
+                      <p className="text-destructive font-medium">
+                        This action will permanently delete all quotations,
+                        booking agreements, payments, timeline activity, and
+                        client notes linked to this lead.
+                      </p>
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={isDeleting}>
+                      Cancel
+                    </AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleDeleteLead}
+                      disabled={isDeleting}
+                      className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                    >
+                      {isDeleting ? "Deleting..." : "Permanently Delete"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          </div>
+
+          {/* Tier 2: Dedicated Quick Actions Command Strip */}
+          <div className="pt-4 border-t border-border/60">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground shrink-0 select-none">
+                <Sparkles className="h-3.5 w-3.5 text-primary" />
+                <span>Quick Actions</span>
+              </div>
+
+              <div className="flex items-center gap-2 overflow-x-auto scrollbar-none py-0.5 w-full flex-nowrap">
                 <LeadActionDialogs
                   lead={lead}
-                  className="flex items-center gap-1.5 flex-nowrap shrink-0"
+                  className="flex items-center gap-2 flex-nowrap shrink-0"
                 />
 
                 <ShootCallSheetDialog
@@ -1138,9 +1215,9 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="gap-1.5 text-xs h-8 px-2.5 font-medium shrink-0 bg-background hover:bg-muted"
+                      className="gap-1.5 text-xs h-8 px-3 font-medium shrink-0 bg-background/90 hover:bg-muted rounded-lg border-border/80 shadow-2xs text-foreground"
                     >
-                      <Film className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
+                      <Film className="h-3.5 w-3.5 text-indigo-500" />
                       <span>Shoot Call Sheet</span>
                     </Button>
                   }
@@ -1153,9 +1230,9 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="gap-1.5 text-xs h-8 px-2.5 font-medium shrink-0 bg-background hover:bg-muted"
+                      className="gap-1.5 text-xs h-8 px-3 font-medium shrink-0 bg-background/90 hover:bg-muted rounded-lg border-border/80 shadow-2xs text-foreground"
                     >
-                      <Send className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
+                      <Send className="h-3.5 w-3.5 text-emerald-600" />
                       <span>WhatsApp Proposal</span>
                     </Button>
                   }
@@ -1490,7 +1567,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                             >
                               <div className="flex flex-col gap-4 p-4 sm:p-5">
                                 <div className="flex items-start gap-3">
-                                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-sm font-semibold text-white">
+                                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary text-sm font-semibold text-primary-foreground shadow-sm shadow-primary/25">
                                     {String(i + 1).padStart(2, "0")}
                                   </div>
                                   <div className="min-w-0 flex-1">
@@ -1510,12 +1587,26 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                                       {ev.status || "Upcoming"}
                                     </p>
                                   </div>
-                                  <Badge
-                                    variant="outline"
-                                    className="shrink-0 border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-600 dark:bg-slate-900 dark:text-slate-300"
-                                  >
-                                    {ev.status || "Upcoming"}
-                                  </Badge>
+                                  <div className="flex shrink-0 items-center gap-2">
+                                    <Badge
+                                      variant="outline"
+                                      className="border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-600 dark:bg-slate-900 dark:text-slate-300"
+                                    >
+                                      {ev.status || "Upcoming"}
+                                    </Badge>
+                                    {ev.id && (
+                                      <EditEventDialog
+                                        event={ev as any}
+                                        leadId={lead.id}
+                                        trigger={
+                                          <Button variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs">
+                                            <Edit3 className="h-3 w-3" />
+                                            <span className="hidden sm:inline">Edit</span>
+                                          </Button>
+                                        }
+                                      />
+                                    )}
+                                  </div>
                                 </div>
 
                                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
@@ -1843,7 +1934,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                                   </span>
                                   <span>{group.label}</span>
                                 </div>
-                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-muted text-slate-500 dark:text-slate-400">
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground">
                                   {group.items.length}
                                 </span>
                               </div>
@@ -1898,7 +1989,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                             >
                               <div className="flex items-center justify-between text-xs pb-1.5 border-b border-border/40">
                                 <span className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                                  <span className="h-5 w-5 rounded-full bg-slate-700 text-white text-[10px] flex items-center justify-center font-bold">
+                                  <span className="h-5 w-5 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-bold">
                                     {i + 1}
                                   </span>
                                   <span className="truncate">
