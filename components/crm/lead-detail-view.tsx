@@ -193,12 +193,12 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
   if (!lead) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] p-8 text-center space-y-4">
-        <AlertCircle className="h-10 w-10 text-slate-500 dark:text-slate-400 opacity-50" />
+        <AlertCircle className="h-10 w-10 text-muted-foreground opacity-50" />
         <div className="space-y-1">
-          <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
+          <h2 className="text-lg font-bold text-foreground">
             Lead Record Not Found
           </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
+          <p className="text-xs text-muted-foreground">
             The requested client enquiry could not be retrieved.
           </p>
         </div>
@@ -289,10 +289,10 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
     if (lower.includes("drone") || lower.includes("aerial")) {
       return {
         label: req,
-        icon: <Compass className="h-3 w-3 shrink-0 text-slate-500" />,
-        bgClass: "bg-slate-1000/10 dark:bg-slate-900",
-        textClass: "text-slate-500 dark:text-slate-400",
-        borderClass: "border-slate-200 dark:border-slate-200",
+        icon: <Compass className="h-3 w-3 shrink-0 text-sky-600 dark:text-sky-400" />,
+        bgClass: "bg-sky-500/10 dark:bg-sky-950/40",
+        textClass: "text-sky-700 dark:text-sky-300",
+        borderClass: "border-sky-500/20 dark:border-sky-500/30",
         category: "aerial",
       };
     }
@@ -303,10 +303,10 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
     ) {
       return {
         label: req,
-        icon: <Radio className="h-3 w-3 shrink-0 text-emerald-500" />,
+        icon: <Radio className="h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400" />,
         bgClass: "bg-emerald-500/10 dark:bg-emerald-950/40",
-        textClass: "text-emerald-800 dark:text-emerald-300",
-        borderClass: "border-emerald-500/25 dark:border-emerald-700/50",
+        textClass: "text-emerald-700 dark:text-emerald-300",
+        borderClass: "border-emerald-500/20 dark:border-emerald-500/30",
         category: "stream",
       };
     }
@@ -318,10 +318,10 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
     ) {
       return {
         label: req,
-        icon: <BookOpen className="h-3 w-3 shrink-0 text-slate-500" />,
-        bgClass: "bg-slate-1000/10 dark:bg-slate-900",
-        textClass: "text-slate-500 dark:text-slate-400",
-        borderClass: "border-slate-200 dark:border-slate-200",
+        icon: <BookOpen className="h-3 w-3 shrink-0 text-amber-600 dark:text-amber-400" />,
+        bgClass: "bg-amber-500/10 dark:bg-amber-950/40",
+        textClass: "text-amber-700 dark:text-amber-300",
+        borderClass: "border-amber-500/20 dark:border-amber-500/30",
         category: "album",
       };
     }
@@ -335,10 +335,10 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
     ) {
       return {
         label: req,
-        icon: <Film className="h-3 w-3 shrink-0 text-slate-500" />,
-        bgClass: "bg-slate-1000/10 dark:bg-slate-900",
-        textClass: "text-slate-500 dark:text-slate-400",
-        borderClass: "border-slate-200 dark:border-slate-200",
+        icon: <Film className="h-3 w-3 shrink-0 text-indigo-600 dark:text-indigo-400" />,
+        bgClass: "bg-indigo-500/10 dark:bg-indigo-950/40",
+        textClass: "text-indigo-700 dark:text-indigo-300",
+        borderClass: "border-indigo-500/20 dark:border-indigo-500/30",
         category: "video",
       };
     }
@@ -349,10 +349,10 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
     ) {
       return {
         label: req,
-        icon: <Camera className="h-3 w-3 shrink-0 text-slate-500" />,
-        bgClass: "bg-slate-1000/10 dark:bg-slate-900",
-        textClass: "text-slate-500 dark:text-slate-400",
-        borderClass: "border-slate-200 dark:border-slate-200",
+        icon: <Camera className="h-3 w-3 shrink-0 text-muted-foreground" />,
+        bgClass: "bg-muted/70 dark:bg-muted/50",
+        textClass: "text-foreground",
+        borderClass: "border-border/80",
         category: "photo",
       };
     }
@@ -364,19 +364,19 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
     ) {
       return {
         label: req,
-        icon: <Sparkles className="h-3 w-3 shrink-0 text-slate-500" />,
-        bgClass: "bg-slate-1000/10 dark:bg-slate-900",
-        textClass: "text-slate-500 dark:text-slate-400",
-        borderClass: "border-slate-200 dark:border-slate-200",
+        icon: <Sparkles className="h-3 w-3 shrink-0 text-rose-600 dark:text-rose-400" />,
+        bgClass: "bg-rose-500/10 dark:bg-rose-950/40",
+        textClass: "text-rose-700 dark:text-rose-300",
+        borderClass: "border-rose-500/20 dark:border-rose-500/30",
         category: "shoot",
       };
     }
     return {
       label: req,
-      icon: <Tag className="h-3 w-3 shrink-0 text-slate-500" />,
-      bgClass: "bg-muted/80",
-      textClass: "text-slate-900 dark:text-slate-100",
-      borderClass: "border-border",
+      icon: <Tag className="h-3 w-3 shrink-0 text-muted-foreground" />,
+      bgClass: "bg-muted/60",
+      textClass: "text-muted-foreground",
+      borderClass: "border-border/60",
       category: "other",
     };
   };
@@ -533,51 +533,51 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
     }[] = [
       {
         label: "Photography Coverage",
-        icon: <Camera className="h-3.5 w-3.5 text-slate-500" />,
+        icon: <Camera className="h-3.5 w-3.5 text-muted-foreground" />,
         items: [],
         color:
-          "bg-slate-1000/10 text-slate-500 dark:text-slate-400 border-slate-200",
+          "bg-muted/70 text-foreground border-border/80",
       },
       {
         label: "Cinematography & Video",
-        icon: <Film className="h-3.5 w-3.5 text-slate-500" />,
+        icon: <Film className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />,
         items: [],
         color:
-          "bg-slate-1000/10 text-slate-500 dark:text-slate-400 border-slate-200",
+          "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/20",
       },
       {
         label: "Aerial / Drone Coverage",
-        icon: <Compass className="h-3.5 w-3.5 text-slate-500" />,
+        icon: <Compass className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" />,
         items: [],
         color:
-          "bg-slate-1000/10 text-slate-500 dark:text-slate-400 border-slate-200",
+          "bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/20",
       },
       {
         label: "Luxury Albums & Photobooks",
-        icon: <BookOpen className="h-3.5 w-3.5 text-slate-500" />,
+        icon: <BookOpen className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />,
         items: [],
         color:
-          "bg-slate-1000/10 text-slate-500 dark:text-slate-400 border-slate-200",
+          "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20",
       },
       {
         label: "Live Streaming & Broadcast",
-        icon: <Radio className="h-3.5 w-3.5 text-emerald-500" />,
+        icon: <Radio className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />,
         items: [],
         color:
-          "bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border-emerald-500/25",
+          "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20",
       },
       {
         label: "Couple / Pre-Wedding Shoots",
-        icon: <Sparkles className="h-3.5 w-3.5 text-slate-500" />,
+        icon: <Sparkles className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />,
         items: [],
         color:
-          "bg-slate-1000/10 text-slate-500 dark:text-slate-400 border-slate-200",
+          "bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/20",
       },
       {
         label: "Custom & Special Services",
-        icon: <Tag className="h-3.5 w-3.5 text-slate-500" />,
+        icon: <Tag className="h-3.5 w-3.5 text-muted-foreground" />,
         items: [],
-        color: "bg-muted text-slate-900 dark:text-slate-100 border-border",
+        color: "bg-muted/60 text-muted-foreground border-border/60",
       },
     ];
 
@@ -1005,35 +1005,25 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
         </div>
 
         {/* 2. EXECUTIVE CLIENT HERO HEADER */}
-        <div className="relative overflow-hidden rounded-2xl border border-border/80 bg-card text-card-foreground p-5 sm:p-7 shadow-xs backdrop-blur-xs space-y-6">
-          {/* Subtle Ambient Accents */}
-          <div
-            className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-primary/5 blur-3xl"
-            aria-hidden="true"
-          />
-          <div
-            className="pointer-events-none absolute -left-24 -bottom-24 h-64 w-64 rounded-full bg-emerald-500/5 blur-3xl"
-            aria-hidden="true"
-          />
-
+        <div className="rounded-xl border border-border/80 bg-card text-card-foreground p-5 sm:p-6 shadow-2xs space-y-5">
           {/* Tier 1: Client Identity & Primary Contact CTAs */}
-          <div className="relative flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5 sm:gap-6">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
             {/* Client Identity Block */}
             <div className="flex items-start gap-4 sm:gap-5 min-w-0 flex-1">
               {/* Executive Client Monogram Box */}
-              <div className="h-14 w-14 sm:h-16 sm:w-16 rounded-2xl bg-gradient-to-br from-primary/15 via-primary/10 to-primary/5 border border-primary/20 flex items-center justify-center text-primary font-bold text-lg sm:text-xl shrink-0 shadow-2xs select-none">
+              <div className="h-14 w-14 sm:h-16 sm:w-16 rounded-xl bg-muted/80 border border-border/80 flex items-center justify-center text-foreground font-bold text-lg sm:text-xl shrink-0 select-none shadow-2xs">
                 {getInitials(client.name)}
               </div>
 
               <div className="space-y-2.5 min-w-0 flex-1">
                 {/* Title & Status Badges */}
                 <div className="flex items-center gap-2.5 flex-wrap">
-                  <h1 className="text-2xl sm:text-[2rem] font-bold tracking-tight text-foreground truncate">
+                  <h1 className="text-2xl sm:text-[1.85rem] font-bold tracking-tight text-foreground truncate">
                     {client.name}
                   </h1>
                   <Badge
                     variant="outline"
-                    className="font-semibold text-xs px-2.5 py-0.5 bg-muted/40 border-border/80 text-foreground inline-flex items-center gap-1.5"
+                    className="font-semibold text-xs px-2.5 py-0.5 bg-muted/40 border-border/80 text-foreground inline-flex items-center gap-1.5 rounded-md"
                   >
                     <Camera className="h-3 w-3 text-muted-foreground" />
                     <span>{lead.event_type || "Event"}</span>
@@ -1048,7 +1038,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                             ? "purple"
                             : "default"
                     }
-                    className="text-xs font-semibold px-2.5 py-0.5"
+                    className="text-xs font-semibold px-2.5 py-0.5 rounded-md"
                   >
                     {lead.lead_status}
                   </Badge>
@@ -1058,14 +1048,14 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                     <DropdownMenuTrigger asChild>
                       <button
                         type="button"
-                        className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full border transition-all hover:opacity-90 active:scale-95 shadow-2xs cursor-pointer ${
+                        className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-md border transition-all hover:opacity-90 active:scale-95 shadow-2xs cursor-pointer ${
                           lead.contact_status === "Responded"
                             ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
                             : lead.contact_status === "Contacted – Waiting for Response"
                               ? "bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/30"
                               : lead.contact_status === "No Response"
                                 ? "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30"
-                                : "bg-muted text-muted-foreground border-border"
+                                : "bg-muted/70 text-muted-foreground border-border/80"
                         }`}
                         title="Click to update contact status"
                       >
@@ -1077,7 +1067,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                                 ? "bg-sky-500 animate-pulse"
                                 : lead.contact_status === "No Response"
                                   ? "bg-amber-500"
-                                  : "bg-slate-400"
+                                  : "bg-muted-foreground/60"
                           }`}
                         />
                         <span>{lead.contact_status || "Not Contacted"}</span>
@@ -1093,7 +1083,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                         {
                           status: "Not Contacted" as ContactStatus,
                           label: "Not Contacted",
-                          dotClass: "bg-slate-400",
+                          dotClass: "bg-muted-foreground/60",
                         },
                         {
                           status: "Contacted – Waiting for Response" as ContactStatus,
@@ -1133,7 +1123,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                   {displayedEvents.length > 1 && (
                     <Badge
                       variant="secondary"
-                      className="text-xs font-medium bg-muted/60 text-foreground"
+                      className="text-xs font-medium bg-muted/60 text-foreground rounded-md"
                     >
                       {displayedEvents.length} Ceremonies
                     </Badge>
@@ -1141,14 +1131,14 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                   {getEventDaysLeft() && (
                     <Badge
                       variant="outline"
-                      className="text-xs font-medium text-muted-foreground border-border/70 inline-flex items-center gap-1"
+                      className="text-xs font-medium text-muted-foreground border-border/70 inline-flex items-center gap-1 rounded-md"
                     >
                       <Clock className="h-3 w-3 text-muted-foreground" />
                       <span>{getEventDaysLeft()}</span>
                     </Badge>
                   )}
                   {lead.source && (
-                    <span className="text-xs text-muted-foreground inline-flex items-center gap-1 bg-muted/30 px-2 py-0.5 rounded-md border border-border/40">
+                    <span className="text-xs text-muted-foreground inline-flex items-center gap-1 bg-muted/30 px-2.5 py-0.5 rounded-md border border-border/40">
                       Source:{" "}
                       <strong className="text-foreground font-medium">
                         {lead.source}
@@ -1158,10 +1148,10 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                 </div>
 
                 {/* Subtitle Contact & Location Info Pills */}
-                <div className="flex flex-wrap items-center gap-2.5 text-xs">
+                <div className="flex flex-wrap items-center gap-2 text-xs">
                   {client.phone && (
                     <div className="inline-flex items-center gap-2 text-foreground font-medium bg-muted/40 hover:bg-muted/70 px-3 py-1.5 rounded-lg border border-border/60 transition-colors shadow-2xs">
-                      <Phone className="h-3.5 w-3.5 text-sky-500 shrink-0" />
+                      <Phone className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
                       <a
                         href={`tel:${client.phone}`}
                         className="hover:underline tracking-tight"
@@ -1185,7 +1175,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
 
                   {client.email && (
                     <div className="inline-flex items-center gap-2 text-foreground font-medium bg-muted/40 hover:bg-muted/70 px-3 py-1.5 rounded-lg border border-border/60 transition-colors shadow-2xs">
-                      <Mail className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+                      <Mail className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
                       <a
                         href={`mailto:${client.email}`}
                         className="hover:underline max-w-[190px] sm:max-w-none truncate"
@@ -1215,7 +1205,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                       className="inline-flex items-center gap-2 text-foreground font-medium bg-muted/40 hover:bg-muted/70 px-3 py-1.5 rounded-lg border border-border/60 transition-colors shadow-2xs"
                       title="Open Venue in Google Maps"
                     >
-                      <MapPin className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                      <MapPin className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                       <span className="truncate max-w-[220px]">
                         {client.location}
                       </span>
@@ -1234,7 +1224,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="gap-2 text-xs h-9 px-3.5 font-medium rounded-lg border-border/80 bg-background/90 hover:bg-muted/80 shadow-2xs text-foreground cursor-pointer transition-all active:scale-[0.98]"
+                    className="gap-2 text-xs h-9 px-3.5 font-medium rounded-lg border-border/80 bg-background hover:bg-muted/80 shadow-2xs text-foreground cursor-pointer transition-all active:scale-[0.98]"
                   >
                     <span
                       className={`h-2 w-2 rounded-full shrink-0 ${
@@ -1244,7 +1234,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                             ? "bg-sky-500 animate-pulse"
                             : lead.contact_status === "No Response"
                               ? "bg-amber-500"
-                              : "bg-slate-400"
+                              : "bg-muted-foreground/60"
                       }`}
                     />
                     <span className="text-muted-foreground hidden sm:inline">Contact:</span>
@@ -1261,7 +1251,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                     {
                       status: "Not Contacted" as ContactStatus,
                       label: "Not Contacted",
-                      dotClass: "bg-slate-400",
+                      dotClass: "bg-muted-foreground/60",
                     },
                     {
                       status: "Contacted – Waiting for Response" as ContactStatus,
@@ -1323,7 +1313,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="gap-1.5 text-xs h-9 px-3.5 font-medium rounded-lg border-border/80 bg-background/80 hover:bg-muted/80 shadow-2xs text-foreground"
+                    className="gap-1.5 text-xs h-9 px-3.5 font-medium rounded-lg border-border/80 bg-background hover:bg-muted/80 shadow-2xs text-foreground"
                   >
                     <Edit3 className="h-3.5 w-3.5 text-muted-foreground" />
                     <span>Edit Details</span>
@@ -1385,7 +1375,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
           <div className="pt-4 border-t border-border/60">
             <div className="flex flex-col sm:flex-row sm:items-center gap-3">
               <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground shrink-0 select-none">
-                <Sparkles className="h-3.5 w-3.5 text-primary" />
+                <Sparkles className="h-3.5 w-3.5 text-muted-foreground" />
                 <span>Quick Actions</span>
               </div>
 
@@ -1402,9 +1392,9 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="gap-1.5 text-xs h-8 px-3 font-medium shrink-0 bg-background/90 hover:bg-muted rounded-lg border-border/80 shadow-2xs text-foreground"
+                      className="gap-1.5 text-xs h-8 px-3 font-medium shrink-0 bg-background hover:bg-muted rounded-md border-border/80 shadow-2xs text-foreground"
                     >
-                      <Film className="h-3.5 w-3.5 text-indigo-500" />
+                      <Film className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
                       <span>Shoot Call Sheet</span>
                     </Button>
                   }
@@ -1417,9 +1407,9 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="gap-1.5 text-xs h-8 px-3 font-medium shrink-0 bg-background/90 hover:bg-muted rounded-lg border-border/80 shadow-2xs text-foreground"
+                      className="gap-1.5 text-xs h-8 px-3 font-medium shrink-0 bg-background hover:bg-muted rounded-md border-border/80 shadow-2xs text-foreground"
                     >
-                      <Send className="h-3.5 w-3.5 text-emerald-600" />
+                      <Send className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                       <span>WhatsApp Proposal</span>
                     </Button>
                   }
@@ -1432,20 +1422,20 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
         {/* 3. 4-METRIC UNIFIED DASHBOARD KPI STRIP */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
           {/* Card 1: Estimated Budget / Contract Value */}
-          <div className="p-5 rounded-2xl border border-border/80 bg-card text-card-foreground shadow-xs hover:border-primary/30 hover:shadow-sm transition-all space-y-2.5">
+          <div className="p-4 sm:p-5 rounded-xl border border-border/80 bg-card text-card-foreground shadow-2xs hover:border-border transition-colors space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                 {booking ? "Contract Value" : "Estimated Budget"}
               </span>
-              <div className="h-8 w-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+              <div className="h-8 w-8 rounded-lg bg-muted border border-border/60 flex items-center justify-center text-foreground">
                 <IndianRupee className="h-4 w-4" />
               </div>
             </div>
-            <div className="text-2xl sm:text-[1.85rem] leading-none font-bold tracking-tight tabular-nums text-foreground">
+            <div className="text-2xl font-bold tracking-tight tabular-nums text-foreground">
               {formatCurrency(actualContractTotal)}
             </div>
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground pt-0.5">
-              <span className="text-emerald-600 dark:text-emerald-400 font-semibold bg-emerald-500/10 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded text-[11px]">
+              <span className="text-emerald-700 dark:text-emerald-300 font-semibold bg-emerald-500/10 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded text-[11px]">
                 {lead.profit_percentage ?? 30}% Margin
               </span>
               <span>•</span>
@@ -1460,16 +1450,16 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
           </div>
 
           {/* Card 2: Financial Settlement Status */}
-          <div className="p-5 rounded-2xl border border-border/80 bg-card text-card-foreground shadow-xs hover:border-primary/30 hover:shadow-sm transition-all space-y-2.5">
+          <div className="p-4 sm:p-5 rounded-xl border border-border/80 bg-card text-card-foreground shadow-2xs hover:border-border transition-colors space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Financial Status
               </span>
-              <div className="h-8 w-8 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+              <div className="h-8 w-8 rounded-lg bg-muted border border-border/60 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
                 <CreditCard className="h-4 w-4" />
               </div>
             </div>
-            <div className="text-2xl sm:text-[1.85rem] leading-none font-bold tracking-tight tabular-nums text-foreground flex items-baseline gap-1.5">
+            <div className="text-2xl font-bold tracking-tight tabular-nums text-foreground flex items-baseline gap-1.5">
               <span>{formatCurrency(actualTotalPaid)}</span>
               <span className="text-xs text-muted-foreground font-normal">
                 / {formatCurrency(actualContractTotal)}
@@ -1481,9 +1471,9 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                 <div
                   className={`h-full transition-all duration-500 rounded-full ${
                     paidPercent >= 100
-                      ? "bg-emerald-500"
+                      ? "bg-emerald-600 dark:bg-emerald-500"
                       : paidPercent > 0
-                        ? "bg-gradient-to-r from-emerald-500 to-primary"
+                        ? "bg-emerald-600 dark:bg-emerald-500"
                         : "bg-transparent"
                   }`}
                   style={{ width: `${paidPercent}%` }}
@@ -1503,7 +1493,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                   className={
                     actualRemainingDue > 0
                       ? "text-muted-foreground font-semibold"
-                      : "text-emerald-600 font-bold"
+                      : "text-emerald-600 dark:text-emerald-400 font-bold"
                   }
                 >
                   {actualRemainingDue === 0
@@ -1515,16 +1505,16 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
           </div>
 
           {/* Card 3: Upcoming Ceremony Date */}
-          <div className="p-5 rounded-2xl border border-border/80 bg-card text-card-foreground shadow-xs hover:border-primary/30 hover:shadow-sm transition-all space-y-2.5">
+          <div className="p-4 sm:p-5 rounded-xl border border-border/80 bg-card text-card-foreground shadow-2xs hover:border-border transition-colors space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Ceremony Schedule
               </span>
-              <div className="h-8 w-8 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+              <div className="h-8 w-8 rounded-lg bg-muted border border-border/60 flex items-center justify-center text-foreground">
                 <Calendar className="h-4 w-4" />
               </div>
             </div>
-            <div className="text-2xl sm:text-[1.85rem] leading-none font-bold tracking-tight tabular-nums text-foreground line-clamp-1">
+            <div className="text-2xl font-bold tracking-tight tabular-nums text-foreground line-clamp-1">
               {lead.event_date ? formatDate(lead.event_date) : "Date TBD"}
             </div>
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground pt-0.5">
@@ -1539,7 +1529,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
 
           {/* Card 4: Next Action & Follow-up Due */}
           <div
-            className={`p-5 rounded-2xl border bg-card text-card-foreground shadow-xs hover:border-primary/30 hover:shadow-sm transition-all space-y-2.5 ${
+            className={`p-4 sm:p-5 rounded-xl border bg-card text-card-foreground shadow-2xs hover:border-border transition-colors space-y-2 ${
               overdue
                 ? "border-destructive/40 bg-destructive/5"
                 : "border-border/80"
@@ -1550,10 +1540,10 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                 Next Action
               </span>
               <div
-                className={`h-8 w-8 rounded-xl flex items-center justify-center ${
+                className={`h-8 w-8 rounded-lg border border-border/60 flex items-center justify-center ${
                   overdue
-                    ? "bg-destructive/15 text-destructive"
-                    : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                    ? "bg-destructive/15 text-destructive border-destructive/30"
+                    : "bg-muted text-foreground"
                 }`}
               >
                 <Clock className="h-4 w-4" />
@@ -1647,9 +1637,9 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
 
                     <TabsTrigger
                       value="activity"
-                      className="data-[state=active]:border-primary data-[state=active]:text-slate-900 dark:text-slate-100 text-xs px-3.5 py-3 rounded-none border-b-2 border-transparent gap-1.5 font-semibold transition-colors hover:text-slate-900 dark:text-slate-100 hover:bg-transparent"
+                      className="data-[state=active]:border-primary data-[state=active]:text-foreground text-xs px-3.5 py-3 rounded-none border-b-2 border-transparent gap-1.5 font-semibold transition-colors hover:text-foreground hover:bg-transparent text-muted-foreground"
                     >
-                      <MessageSquareQuote className="h-3.5 w-3.5 text-slate-500" />
+                      <MessageSquareQuote className="h-3.5 w-3.5 text-muted-foreground" />
                       <span>Notes & Communications</span>
                       {notes.length + communications.length > 0 && (
                         <Badge
@@ -1667,16 +1657,16 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
               {/* TAB 1: OVERVIEW & SCHEDULE */}
               <TabsContent value="overview" className="space-y-6 mt-0">
                 {/* Ceremony & Multi-Day Event Schedule */}
-                <Card className="shadow-[0_1px_2px_rgba(15,23,42,0.06),0_8px_22px_rgba(15,23,42,0.035)] border-slate-200 dark:border-slate-200 overflow-hidden">
-                  <CardHeader className="pb-3 border-b bg-white dark:bg-slate-950/20">
+                <Card className="border border-border/80 bg-card text-card-foreground shadow-2xs rounded-xl overflow-hidden">
+                  <CardHeader className="pb-3 border-b border-border/60 bg-muted/20">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                       <div className="space-y-0.5">
-                        <CardTitle className="text-[15px] font-semibold tracking-[-0.01em] flex items-center gap-2 text-slate-900 dark:text-slate-100">
-                          <Calendar className="h-4 w-4 text-slate-500 dark:text-slate-500" />
+                        <CardTitle className="text-[15px] font-semibold tracking-[-0.01em] flex items-center gap-2 text-foreground">
+                          <Calendar className="h-4 w-4 text-muted-foreground" />
                           <span>Ceremony & Function Schedule</span>
                           <Badge
                             variant="secondary"
-                            className="text-[11px] font-semibold bg-slate-100 dark:bg-slate-900 text-slate-500 dark:text-slate-400 border-slate-200"
+                            className="text-[11px] font-semibold bg-muted text-foreground border-border/80 rounded-md"
                           >
                             {displayedEvents.length}{" "}
                             {displayedEvents.length === 1
@@ -1692,7 +1682,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
 
                       <div className="flex items-center gap-2 self-start sm:self-auto">
                         {/* View Mode Toggle: Cards vs Itinerary Matrix */}
-                        <div className="flex items-center rounded-lg border bg-muted/60 p-0.5 shadow-[0_1px_2px_rgba(15,23,42,0.05)]">
+                        <div className="flex items-center rounded-lg border border-border/80 bg-muted/60 p-0.5 shadow-2xs">
                           <Button
                             type="button"
                             variant={
@@ -1729,7 +1719,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                             <Button
                               variant="outline"
                               size="sm"
-                              className="h-7 text-xs gap-1.5 border-slate-200 hover:bg-slate-100 dark:border-slate-200 dark:hover:bg-slate-800"
+                              className="h-7 text-xs gap-1.5 border-border/80 hover:bg-muted"
                             >
                               <Plus className="h-3.5 w-3.5" />
                               <span>Add / Edit Events</span>
@@ -1759,26 +1749,26 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                           return (
                             <article
                               key={ev.id || i}
-                              className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.05),0_8px_20px_rgba(15,23,42,0.03)]"
+                              className="overflow-hidden rounded-xl border border-border/80 bg-card text-card-foreground shadow-2xs"
                             >
                               <div className="flex flex-col gap-4 p-4 sm:p-5">
                                 <div className="flex items-start gap-3">
-                                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary text-sm font-semibold text-primary-foreground shadow-sm shadow-primary/25">
+                                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-sm font-semibold text-primary-foreground shadow-2xs">
                                     {String(i + 1).padStart(2, "0")}
                                   </div>
                                   <div className="min-w-0 flex-1">
                                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                                      <h3 className="text-[15px] font-semibold tracking-[-0.015em] text-slate-950 dark:text-white">
+                                      <h3 className="text-[15px] font-semibold tracking-[-0.015em] text-foreground">
                                         {ev.event_name || ev.event_type}
                                       </h3>
-                                      <span className="text-xs text-slate-400">
+                                      <span className="text-xs text-muted-foreground/60">
                                         /
                                       </span>
-                                      <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                                      <span className="text-xs font-medium text-muted-foreground">
                                         {ev.custom_event_type || ev.event_type}
                                       </span>
                                     </div>
-                                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                    <p className="mt-1 text-xs text-muted-foreground">
                                       Function {i + 1} ·{" "}
                                       {ev.status || "Upcoming"}
                                     </p>
@@ -1786,7 +1776,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                                   <div className="flex shrink-0 items-center gap-2">
                                     <Badge
                                       variant="outline"
-                                      className="border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-600 dark:bg-slate-900 dark:text-slate-300"
+                                      className="border-border/80 bg-muted/50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-foreground rounded-md"
                                     >
                                       {ev.status || "Upcoming"}
                                     </Badge>
@@ -1795,7 +1785,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                                         event={ev as any}
                                         leadId={lead.id}
                                         trigger={
-                                          <Button variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs">
+                                          <Button variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs rounded-md">
                                             <Edit3 className="h-3 w-3" />
                                             <span className="hidden sm:inline">Edit</span>
                                           </Button>
@@ -1806,12 +1796,12 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                                 </div>
 
                                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                                  <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 dark:bg-slate-900/30">
-                                    <span className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+                                  <div className="rounded-lg border border-border/60 bg-muted/40 p-3">
+                                    <span className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                                       Date
                                     </span>
-                                    <div className="mt-1.5 flex items-center gap-2 text-sm font-semibold text-slate-950 dark:text-white">
-                                      <Calendar className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+                                    <div className="mt-1.5 flex items-center gap-2 text-sm font-semibold text-foreground">
+                                      <Calendar className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                                       <span>
                                         {ev.event_date
                                           ? formatDate(ev.event_date)
@@ -1819,7 +1809,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                                       </span>
                                     </div>
                                     {ev.event_date && (
-                                      <span className="mt-1 block pl-5 text-[11px] text-slate-500 dark:text-slate-400">
+                                      <span className="mt-1 block pl-5 text-[11px] text-muted-foreground">
                                         {new Date(
                                           ev.event_date,
                                         ).toLocaleDateString("en-US", {
@@ -1829,12 +1819,12 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                                     )}
                                   </div>
 
-                                  <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 dark:bg-slate-900/30">
-                                    <span className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+                                  <div className="rounded-lg border border-border/60 bg-muted/40 p-3">
+                                    <span className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                                       Coverage Window
                                     </span>
-                                    <div className="mt-1.5 flex items-center gap-2 text-sm font-semibold text-slate-950 dark:text-white">
-                                      <Clock className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+                                    <div className="mt-1.5 flex items-center gap-2 text-sm font-semibold text-foreground">
+                                      <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                                       <span>
                                         {ev.start_time || ev.end_time
                                           ? `${ev.start_time || ""} - ${ev.end_time || ""}`
@@ -1843,12 +1833,12 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                                     </div>
                                   </div>
 
-                                  <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 dark:bg-slate-900/30">
-                                    <span className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+                                  <div className="rounded-lg border border-border/60 bg-muted/40 p-3">
+                                    <span className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                                       Venue
                                     </span>
-                                    <div className="mt-1.5 flex items-start gap-2 text-sm font-semibold text-slate-950 dark:text-white">
-                                      <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-500" />
+                                    <div className="mt-1.5 flex items-start gap-2 text-sm font-semibold text-foreground">
+                                      <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                                       <span className="leading-5">
                                         {ev.location || "Venue TBD"}
                                       </span>
@@ -1856,15 +1846,15 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                                   </div>
                                 </div>
 
-                                <div className="border-t border-slate-200 pt-4">
+                                <div className="border-t border-border/60 pt-4">
                                   <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                                     <div className="min-w-0 flex-1">
                                       <div className="flex items-center gap-2">
-                                        <Sparkles className="h-3.5 w-3.5 text-slate-500" />
-                                        <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+                                        <Sparkles className="h-3.5 w-3.5 text-muted-foreground" />
+                                        <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                                           Production deliverables
                                         </span>
-                                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                                        <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold tabular-nums text-foreground">
                                           {ev.requirements.length}
                                         </span>
                                       </div>
@@ -1874,32 +1864,32 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                                             (req: string) => (
                                               <span
                                                 key={req}
-                                                className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 dark:bg-slate-950 dark:text-slate-200"
+                                                className="inline-flex items-center rounded-md border border-border/70 bg-background px-2.5 py-1 text-xs font-medium text-foreground"
                                               >
                                                 {req}
                                               </span>
                                             ),
                                           )}
                                           {ev.other_requirement && (
-                                            <span className="inline-flex items-center rounded-lg border border-dashed border-slate-300 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                                            <span className="inline-flex items-center rounded-md border border-dashed border-border bg-muted/40 px-2.5 py-1 text-xs font-medium text-foreground">
                                               Custom: {ev.other_requirement}
                                             </span>
                                           )}
                                         </div>
                                       ) : (
-                                        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                                        <p className="mt-2 text-xs text-muted-foreground">
                                           Standard photo and video coverage
                                           assigned.
                                         </p>
                                       )}
                                     </div>
 
-                                    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 lg:min-w-[280px] dark:bg-slate-950">
-                                      <span className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
-                                        <Users className="h-3.5 w-3.5 text-slate-500" />
+                                    <div className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2.5 lg:min-w-[280px]">
+                                      <span className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                                        <Users className="h-3.5 w-3.5 text-muted-foreground" />
                                         Crew footprint
                                       </span>
-                                      <p className="mt-1 text-xs font-medium leading-5 text-slate-700 dark:text-slate-200">
+                                      <p className="mt-1 text-xs font-medium leading-5 text-foreground">
                                         {crewSummary.join(" · ")}
                                       </p>
                                     </div>
@@ -1907,8 +1897,8 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                                 </div>
 
                                 {cleanNote && (
-                                  <div className="rounded-xl border-l-2 border-slate-400 bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600 dark:bg-slate-900 dark:text-slate-300">
-                                    <span className="font-semibold text-slate-800 dark:text-slate-100">
+                                  <div className="rounded-lg border-l-2 border-primary/60 bg-muted/40 px-3 py-2 text-xs leading-5 text-foreground">
+                                    <span className="font-semibold text-foreground">
                                       Note:
                                     </span>{" "}
                                     {cleanNote}
@@ -1921,7 +1911,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                       </div>
                     ) : (
                       /* ITINERARY MATRIX TABLE VIEW */
-                      <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white">
+                      <div className="rounded-xl border border-border/80 overflow-hidden bg-card">
                         <Table>
                           <TableHeader className="bg-muted/40">
                             <TableRow>
@@ -1961,17 +1951,17 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                                   key={ev.id || i}
                                   className="hover:bg-muted/30 transition-colors"
                                 >
-                                  <TableCell className="font-bold text-xs text-slate-500 dark:text-slate-400">
-                                    <span className="h-5 w-5 rounded-full bg-slate-700 text-white text-[10px] flex items-center justify-center font-bold">
+                                  <TableCell className="font-bold text-xs text-muted-foreground">
+                                    <span className="h-5 w-5 rounded-full bg-muted text-foreground border border-border/80 text-[10px] flex items-center justify-center font-bold">
                                       {i + 1}
                                     </span>
                                   </TableCell>
                                   <TableCell>
                                     <div className="space-y-0.5">
-                                      <span className="font-bold text-slate-900 dark:text-slate-100 text-xs block">
+                                      <span className="font-semibold text-foreground text-xs block">
                                         {ev.event_name || ev.event_type}
                                       </span>
-                                      <span className="text-[10px] text-slate-500 dark:text-slate-400 block">
+                                      <span className="text-[10px] text-muted-foreground block">
                                         {ev.custom_event_type
                                           ? `${ev.custom_event_type} (${ev.event_type})`
                                           : ev.event_type}
@@ -1981,10 +1971,10 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                                   <TableCell className="text-xs">
                                     {ev.event_date ? (
                                       <div className="space-y-0.5">
-                                        <span className="font-medium text-slate-900 dark:text-slate-100 block">
+                                        <span className="font-medium text-foreground block">
                                           {formatDate(ev.event_date)}
                                         </span>
-                                        <span className="text-[10px] text-slate-500 dark:text-slate-400 block">
+                                        <span className="text-[10px] text-muted-foreground block">
                                           {new Date(
                                             ev.event_date,
                                           ).toLocaleDateString("en-US", {
@@ -1993,14 +1983,14 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                                         </span>
                                       </div>
                                     ) : (
-                                      <span className="text-slate-500 dark:text-slate-400 italic">
+                                      <span className="text-muted-foreground italic">
                                         TBD
                                       </span>
                                     )}
                                   </TableCell>
                                   <TableCell className="text-xs">
-                                    <span className="flex items-center gap-1 font-medium text-slate-900 dark:text-slate-100">
-                                      <Clock className="h-3 w-3 text-slate-500 dark:text-slate-400 shrink-0" />
+                                    <span className="flex items-center gap-1 font-medium text-foreground">
+                                      <Clock className="h-3 w-3 text-muted-foreground shrink-0" />
                                       <span>
                                         {ev.start_time || ev.end_time
                                           ? `${ev.start_time || ""} - ${ev.end_time || ""}`
@@ -2010,12 +2000,12 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                                   </TableCell>
                                   <TableCell className="text-xs">
                                     {ev.location ? (
-                                      <span className="flex items-center gap-1 text-slate-900 dark:text-slate-100 font-medium truncate max-w-[160px]">
-                                        <MapPin className="h-3 w-3 text-red-500 shrink-0" />
+                                      <span className="flex items-center gap-1 text-foreground font-medium truncate max-w-[160px]">
+                                        <MapPin className="h-3 w-3 text-muted-foreground shrink-0" />
                                         <span>{ev.location}</span>
                                       </span>
                                     ) : (
-                                      <span className="text-slate-500 dark:text-slate-400 italic">
+                                      <span className="text-muted-foreground italic">
                                         TBD
                                       </span>
                                     )}
@@ -2038,13 +2028,13 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                                           );
                                         })
                                       ) : (
-                                        <span className="text-[10px] text-slate-500 dark:text-slate-400 italic">
+                                        <span className="text-[10px] text-muted-foreground italic">
                                           Standard coverage
                                         </span>
                                       )}
                                     </div>
                                   </TableCell>
-                                  <TableCell className="text-[11px] text-slate-500 dark:text-slate-400">
+                                  <TableCell className="text-[11px] text-muted-foreground">
                                     <span className="truncate block max-w-[150px]">
                                       {crewSummary.join(" • ")}
                                     </span>
@@ -2052,7 +2042,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                                   <TableCell className="text-right">
                                     <Badge
                                       variant="outline"
-                                      className="text-[10px] uppercase font-bold"
+                                      className="text-[10px] uppercase font-semibold"
                                     >
                                       {ev.status || "Upcoming"}
                                     </Badge>
@@ -2068,12 +2058,12 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                 </Card>
 
                 {/* Requirement Specifications & Chips */}
-                <Card className="shadow-[0_1px_2px_rgba(15,23,42,0.06),0_8px_22px_rgba(15,23,42,0.035)]">
-                  <CardHeader className="pb-3 border-b">
+                <Card className="border border-border/80 bg-card text-card-foreground shadow-2xs rounded-xl overflow-hidden">
+                  <CardHeader className="pb-3 border-b border-border/60 bg-muted/20">
                     <div className="flex items-center justify-between">
                       <div className="space-y-0.5">
-                        <CardTitle className="text-[15px] font-semibold tracking-[-0.01em] flex items-center gap-2">
-                          <Camera className="h-4 w-4 text-slate-700 dark:text-slate-200" />
+                        <CardTitle className="text-[15px] font-semibold tracking-[-0.01em] flex items-center gap-2 text-foreground">
+                          <Camera className="h-4 w-4 text-muted-foreground" />
                           <span>Production Scope & Deliverables Required</span>
                         </CardTitle>
                         <CardDescription className="text-xs">
@@ -2087,7 +2077,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                           <Button
                             variant="outline"
                             size="sm"
-                            className="h-7 text-xs gap-1.5"
+                            className="h-7 text-xs gap-1.5 border-border/80 hover:bg-muted"
                           >
                             <Edit3 className="h-3.5 w-3.5" />
                             <span>Modify Scope</span>
@@ -2100,7 +2090,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                     {/* Master Categorized Deliverables Scope */}
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-[0.12em] block">
+                        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.12em] block">
                           Categorized Production Scope (
                           {allUniqueRequirements.length} Services across{" "}
                           {groupedDeliverables.length} Disciplines)
@@ -2108,9 +2098,9 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                         {lead.other_requirement && (
                           <Badge
                             variant="outline"
-                            className="text-[11px] px-2.5 py-0.5 gap-1.5 border-slate-200 text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-900 font-medium"
+                            className="text-[11px] px-2.5 py-0.5 gap-1.5 border-border/80 text-foreground bg-muted/60 font-medium"
                           >
-                            <Tag className="h-3 w-3 text-slate-500" />
+                            <Tag className="h-3 w-3 text-muted-foreground" />
                             <span>Custom: {lead.other_requirement}</span>
                           </Badge>
                         )}
@@ -2121,10 +2111,10 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                           {groupedDeliverables.map((group, gIdx) => (
                             <div
                               key={gIdx}
-                              className="p-3.5 rounded-2xl border border-slate-200 bg-white/80 shadow-[0_1px_2px_rgba(15,23,42,0.05)] hover:border-primary/30 transition-all space-y-2.5 flex flex-col justify-between"
+                              className="p-3.5 rounded-xl border border-border/80 bg-card shadow-2xs hover:border-border transition-colors space-y-2.5 flex flex-col justify-between"
                             >
-                              <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
-                                <div className="flex items-center gap-2 font-semibold text-xs text-slate-900 dark:text-slate-100">
+                              <div className="flex items-center justify-between pb-1.5 border-b border-border/60">
+                                <div className="flex items-center gap-2 font-semibold text-xs text-foreground">
                                   <span className="p-1 rounded-md bg-muted/80">
                                     {group.icon}
                                   </span>
@@ -2153,7 +2143,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                           ))}
                         </div>
                       ) : (
-                        <div className="p-6 border border-dashed rounded-xl text-center text-xs text-slate-500 dark:text-slate-400 bg-muted/10">
+                        <div className="p-6 border border-dashed rounded-xl text-center text-xs text-muted-foreground bg-muted/10">
                           No specific deliverables selected yet. Click "Modify
                           Scope" above to assign photography, cinematic video,
                           drone, or albums.
@@ -2163,10 +2153,10 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
 
                     {/* Multi-Event Ceremony Scope Breakdown */}
                     {displayedEvents.length > 1 && (
-                      <div className="pt-4 border-t space-y-3">
+                      <div className="pt-4 border-t border-border/60 space-y-3">
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-[0.12em] flex items-center gap-1.5">
-                            <Layers className="h-3.5 w-3.5 text-slate-500" />
+                          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.12em] flex items-center gap-1.5">
+                            <Layers className="h-3.5 w-3.5 text-muted-foreground" />
                             <span>Ceremony-Wise Deliverables Assignment</span>
                           </span>
                           <Badge
@@ -2181,10 +2171,10 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                           {displayedEvents.map((ev, i) => (
                             <div
                               key={ev.id || i}
-                              className="p-3.5 rounded-2xl border border-slate-200 bg-white dark:bg-slate-950/20 hover:border-border transition-colors space-y-2.5"
+                              className="p-3.5 rounded-xl border border-border/80 bg-card hover:border-border transition-colors space-y-2.5 shadow-2xs"
                             >
                               <div className="flex items-center justify-between text-xs pb-1.5 border-b border-border/40">
-                                <span className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                                <span className="font-semibold text-foreground flex items-center gap-2">
                                   <span className="h-5 w-5 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-bold">
                                     {i + 1}
                                   </span>
@@ -2192,7 +2182,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                                     {ev.event_name || ev.event_type}
                                   </span>
                                 </span>
-                                <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium shrink-0">
+                                <span className="text-[11px] text-muted-foreground font-medium shrink-0">
                                   {ev.event_date
                                     ? formatDate(ev.event_date)
                                     : "Date TBD"}
@@ -2215,14 +2205,14 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                                     );
                                   })
                                 ) : (
-                                  <span className="text-[10px] text-slate-500 dark:text-slate-400 italic">
+                                  <span className="text-[10px] text-muted-foreground italic">
                                     Standard general coverage
                                   </span>
                                 )}
                                 {ev.other_requirement && (
                                   <Badge
                                     variant="outline"
-                                    className="text-[10px] px-1.5 py-0.5 gap-1 font-medium bg-slate-1000/10 text-slate-500 dark:text-slate-400 border-slate-200"
+                                    className="text-[10px] px-1.5 py-0.5 gap-1 font-medium bg-muted/60 text-muted-foreground border-border/60"
                                   >
                                     <Tag className="h-2.5 w-2.5" />
                                     <span>{ev.other_requirement}</span>
@@ -2236,11 +2226,11 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                     )}
 
                     {lead.enquiry_message && (
-                      <div className="pt-3 border-t space-y-1.5">
-                        <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 block">
+                      <div className="pt-3 border-t border-border/60 space-y-1.5">
+                        <span className="text-xs font-semibold text-muted-foreground block">
                           Initial Client Inquiry Message / Creative Vision:
                         </span>
-                        <blockquote className="p-3.5 bg-muted/40 rounded-xl text-slate-900 dark:text-slate-100 text-xs italic border border-slate-200">
+                        <blockquote className="p-3.5 bg-muted/30 rounded-lg text-foreground text-xs italic border border-border/60 leading-relaxed">
                           "{lead.enquiry_message}"
                         </blockquote>
                       </div>
@@ -2259,15 +2249,15 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
               <TabsContent value="financials" className="space-y-6 mt-0">
                 {/* Financial Ledger & Booking Contract */}
                 {booking && (
-                  <Card className="shadow-[0_1px_2px_rgba(15,23,42,0.06),0_8px_22px_rgba(15,23,42,0.035)] border-emerald-200/80 dark:border-emerald-900/50">
-                    <CardHeader className="pb-3 border-b bg-white dark:bg-slate-950/20">
+                  <Card className="border border-border/80 bg-card text-card-foreground shadow-2xs rounded-xl overflow-hidden">
+                    <CardHeader className="pb-3 border-b border-border/60 bg-muted/20">
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                         <div>
-                          <CardTitle className="text-base font-semibold text-emerald-950 dark:text-emerald-100 flex items-center gap-2">
-                            <CreditCard className="h-4 w-4 text-slate-500" />
+                          <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
+                            <CreditCard className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                             <span>Booking Contract & Financial Ledger</span>
                           </CardTitle>
-                          <CardDescription className="text-xs text-emerald-800/80 dark:text-emerald-300/80">
+                          <CardDescription className="text-xs text-muted-foreground">
                             Confirmed Contract Status: {booking.booking_status}
                           </CardDescription>
                         </div>
@@ -2292,27 +2282,27 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                     </CardHeader>
                     <CardContent className="p-4 space-y-4">
                       <div className="grid grid-cols-3 gap-3 text-center">
-                        <div className="p-3.5 border rounded-xl bg-background shadow-[0_1px_2px_rgba(15,23,42,0.05)]">
-                          <span className="text-xs text-slate-500 dark:text-slate-400 block">
+                        <div className="p-3.5 border border-border/80 rounded-xl bg-card shadow-2xs">
+                          <span className="text-xs text-muted-foreground block">
                             Total Contract Value
                           </span>
-                          <span className="font-bold text-xl tabular-nums text-slate-950 dark:text-white tracking-[-0.03em]">
+                          <span className="font-bold text-xl tabular-nums text-foreground tracking-tight">
                             {formatCurrency(actualContractTotal)}
                           </span>
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
                             {quotations.length > 0
                               ? "Quoted package"
                               : "Client budget"}
                           </p>
                         </div>
-                        <div className="p-3.5 border rounded-xl bg-emerald-50/50 dark:bg-emerald-950/30 shadow-[0_1px_2px_rgba(15,23,42,0.05)]">
+                        <div className="p-3.5 border border-emerald-500/25 rounded-xl bg-emerald-500/10 dark:bg-emerald-950/30 shadow-2xs">
                           <span className="text-xs text-emerald-700 dark:text-emerald-300 block">
                             Total Paid So Far
                           </span>
                           <span className="font-bold text-lg text-emerald-800 dark:text-emerald-200 tracking-tight">
                             {formatCurrency(actualTotalPaid)}
                           </span>
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
                             {actualAdvancePaid > 0
                               ? `Advance ₹${actualAdvancePaid.toLocaleString("en-IN")} received`
                               : booking.advance_paid_at
@@ -2322,14 +2312,14 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                                   : "Advance Pending"}
                           </p>
                         </div>
-                        <div className="p-3.5 border rounded-xl bg-slate-100 dark:bg-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.05)]">
-                          <span className="text-xs text-slate-500 dark:text-slate-400 block">
+                        <div className="p-3.5 border border-border/80 rounded-xl bg-muted/30 shadow-2xs">
+                          <span className="text-xs text-muted-foreground block">
                             Remaining Due
                           </span>
-                          <span className="font-bold text-lg text-slate-500 dark:text-slate-400 tracking-tight">
+                          <span className="font-bold text-lg text-foreground tracking-tight">
                             {formatCurrency(actualRemainingDue)}
                           </span>
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
                             {actualRemainingDue === 0
                               ? "Fully Cleared"
                               : "Final settlement"}
@@ -2339,21 +2329,21 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
 
                       {/* Settlement Progress Bar */}
                       <div className="space-y-1.5 pt-1">
-                        <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                        <div className="flex items-center justify-between text-xs text-muted-foreground">
                           <span className="font-medium">
                             Contract Settlement Progress
                           </span>
-                          <span className="font-bold text-slate-900 dark:text-slate-100">
+                          <span className="font-bold text-foreground">
                             {paidPercent}% Paid
                           </span>
                         </div>
-                        <div className="h-2 w-full rounded-full bg-muted overflow-hidden border">
+                        <div className="h-2 w-full rounded-full bg-muted overflow-hidden border border-border/40">
                           <div
                             className={`h-full transition-all duration-500 rounded-full ${
                               paidPercent >= 100
-                                ? "bg-emerald-500"
+                                ? "bg-emerald-600 dark:bg-emerald-500"
                                 : paidPercent > 0
-                                  ? "bg-gradient-to-r from-emerald-500 to-primary"
+                                  ? "bg-emerald-600 dark:bg-emerald-500"
                                   : "bg-transparent"
                             }`}
                             style={{ width: `${paidPercent}%` }}
@@ -2363,13 +2353,13 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
 
                       {/* Ceremonies Covered Under This Contract */}
                       {displayedEvents.length > 0 && (
-                        <div className="space-y-2 pt-2 border-t">
+                        <div className="space-y-2 pt-2 border-t border-border/60">
                           <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-[0.12em]">
+                            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.12em]">
                               Covered Ceremonies & Functions (
                               {displayedEvents.length})
                             </span>
-                            <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                            <span className="text-[11px] text-muted-foreground">
                               Multi-Event Scope Included in Contract
                             </span>
                           </div>
@@ -2379,10 +2369,10 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                               return (
                                 <div
                                   key={ev.id || idx}
-                                  className="p-3 rounded-xl border bg-card/60 space-y-1.5 text-xs shadow-[0_1px_2px_rgba(15,23,42,0.05)] hover:border-emerald-500/30 transition-colors"
+                                  className="p-3 rounded-xl border border-border/80 bg-card space-y-1.5 text-xs shadow-2xs hover:border-border transition-colors"
                                 >
                                   <div className="flex items-center justify-between">
-                                    <span className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                                    <span className="font-semibold text-foreground flex items-center gap-1.5">
                                       <Badge className="h-4 px-1 text-[9px] font-bold bg-emerald-600 text-white">
                                         #{idx + 1}
                                       </Badge>
@@ -2397,9 +2387,9 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                                       {ev.status || "Scheduled"}
                                     </Badge>
                                   </div>
-                                  <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+                                  <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
                                     <span className="flex items-center gap-1">
-                                      <Calendar className="h-3 w-3 text-slate-500 dark:text-slate-400" />
+                                      <Calendar className="h-3 w-3 text-muted-foreground" />
                                       {ev.event_date
                                         ? formatDate(ev.event_date)
                                         : "Date TBD"}
@@ -2436,9 +2426,9 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                       )}
 
                       {/* Payments History Table / Cards */}
-                      <div className="space-y-2 pt-2 border-t">
+                      <div className="space-y-2 pt-2 border-t border-border/60">
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-[0.12em]">
+                          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.12em]">
                             Recorded Receipts & Transactions (
                             {paymentsList.length})
                           </span>
@@ -2460,7 +2450,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                         </div>
 
                         {paymentsList.length === 0 ? (
-                          <div className="text-center py-6 text-xs text-slate-500 dark:text-slate-400 border border-dashed rounded-xl p-4">
+                          <div className="text-center py-6 text-xs text-muted-foreground border border-dashed rounded-xl p-4 bg-muted/10">
                             No payments recorded yet. Click "Log Payment" above
                             to record client advance or settlement.
                           </div>
@@ -2469,11 +2459,11 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                             {paymentsList.map((p) => (
                               <div
                                 key={p.id}
-                                className="flex items-center justify-between p-3 rounded-2xl bg-muted/30 text-xs border border-slate-200 hover:border-emerald-500/30 transition-colors"
+                                className="flex items-center justify-between p-3 rounded-xl bg-muted/30 text-xs border border-border/80 hover:border-border transition-colors"
                               >
                                 <div className="space-y-0.5">
                                   <div className="flex items-center gap-2">
-                                    <span className="font-bold text-sm text-slate-900 dark:text-slate-100">
+                                    <span className="font-bold text-sm text-foreground">
                                       {formatCurrency(p.amount)}
                                     </span>
                                     <Badge
@@ -2482,17 +2472,17 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                                     >
                                       {p.payment_type}
                                     </Badge>
-                                    <span className="text-slate-500 dark:text-slate-400 text-[11px]">
+                                    <span className="text-muted-foreground text-[11px]">
                                       via {p.payment_method}
                                     </span>
                                   </div>
                                   {p.reference && (
-                                    <span className="text-slate-500 dark:text-slate-400 text-[11px] block">
+                                    <span className="text-muted-foreground text-[11px] block">
                                       Ref: {p.reference}
                                     </span>
                                   )}
                                 </div>
-                                <span className="text-slate-500 dark:text-slate-400 text-[11px] font-medium">
+                                <span className="text-muted-foreground text-[11px] font-medium">
                                   {formatDate(p.payment_date)}
                                 </span>
                               </div>
@@ -2506,18 +2496,18 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
 
                 {/* Fallback state when booking contract is not yet active */}
                 {!booking && (
-                  <Card className="shadow-[0_1px_2px_rgba(15,23,42,0.06),0_8px_22px_rgba(15,23,42,0.035)] border-dashed border-border/80 bg-muted/10">
-                    <CardHeader className="pb-3 border-b">
+                  <Card className="border-dashed border-border/80 bg-muted/10 rounded-xl shadow-2xs">
+                    <CardHeader className="pb-3 border-b border-border/60">
                       <div className="flex items-center justify-between">
-                        <CardTitle className="text-[15px] font-semibold tracking-[-0.01em] flex items-center gap-2">
-                          <CreditCard className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+                        <CardTitle className="text-[15px] font-semibold tracking-[-0.01em] flex items-center gap-2 text-foreground">
+                          <CreditCard className="h-4 w-4 text-muted-foreground" />
                           <span>Booking Contract & Financial Ledger</span>
                         </CardTitle>
                         <Badge variant="outline" className="text-xs">
                           No Active Booking
                         </Badge>
                       </div>
-                      <CardDescription className="text-xs">
+                      <CardDescription className="text-xs text-muted-foreground">
                         Formalize a booking contract to log advance payments,
                         track stage balances, and manage multi-ceremony
                         photography coverage.
@@ -2525,10 +2515,10 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                     </CardHeader>
                     <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                       <div className="space-y-1">
-                        <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                        <p className="text-sm font-medium text-foreground">
                           Ready to confirm booking for {client.name}?
                         </p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                        <p className="text-xs text-muted-foreground">
                           Accepting a quotation or moving to "Accepted / Booked"
                           initializes the financial ledger and activates payment
                           tracking.
@@ -2537,7 +2527,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                       <Button
                         size="sm"
                         onClick={handleConfirmBooking}
-                        className="gap-1.5 shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white shadow-[0_1px_2px_rgba(15,23,42,0.06),0_8px_22px_rgba(15,23,42,0.035)] font-semibold text-xs"
+                        className="gap-1.5 shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs font-semibold text-xs rounded-lg"
                       >
                         <CheckCircle2 className="h-3.5 w-3.5" />
                         <span>Confirm Booking & Open Ledger</span>
@@ -2547,14 +2537,14 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                 )}
 
                 {/* Quotations & Commercial Proposals */}
-                <Card className="shadow-[0_1px_2px_rgba(15,23,42,0.06),0_8px_22px_rgba(15,23,42,0.035)]">
-                  <CardHeader className="pb-3 border-b flex flex-row items-center justify-between">
+                <Card className="border border-border/80 bg-card text-card-foreground shadow-2xs rounded-xl overflow-hidden">
+                  <CardHeader className="pb-3 border-b border-border/60 bg-muted/20 flex flex-row items-center justify-between">
                     <div>
-                      <CardTitle className="text-[15px] font-semibold tracking-[-0.01em] flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-slate-500" />
+                      <CardTitle className="text-[15px] font-semibold tracking-[-0.01em] flex items-center gap-2 text-foreground">
+                        <FileText className="h-4 w-4 text-muted-foreground" />
                         <span>Commercial Proposals & Quotations</span>
                       </CardTitle>
-                      <CardDescription className="text-xs">
+                      <CardDescription className="text-xs text-muted-foreground">
                         Rate cards and formal quotations drafted for this client
                       </CardDescription>
                     </div>
@@ -2565,9 +2555,9 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                         <Button
                           variant="outline"
                           size="sm"
-                          className="h-7 text-xs gap-1.5"
+                          className="h-7 text-xs gap-1.5 border-border/80 hover:bg-muted"
                         >
-                          <Send className="h-3.5 w-3.5 text-slate-500" />
+                          <Send className="h-3.5 w-3.5 text-muted-foreground" />
                           <span>Send Proposal</span>
                         </Button>
                       }
@@ -2575,7 +2565,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                   </CardHeader>
                   <CardContent className="p-4 space-y-3">
                     {quotations.length === 0 ? (
-                      <div className="text-center py-6 text-xs text-slate-500 dark:text-slate-400 border border-dashed rounded-xl">
+                      <div className="text-center py-6 text-xs text-muted-foreground border border-dashed rounded-xl bg-muted/10">
                         No quotation drafted yet for this client lead. Click
                         "Send Proposal" to create one.
                       </div>
@@ -2583,11 +2573,11 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                       quotations.map((q) => (
                         <div
                           key={q.id}
-                          className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 border rounded-xl bg-card gap-3 shadow-[0_1px_2px_rgba(15,23,42,0.05)]"
+                          className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 border border-border/80 rounded-xl bg-card gap-3 shadow-2xs hover:border-border transition-colors"
                         >
                           <div className="space-y-1 min-w-0 flex-1">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-mono font-bold text-xs bg-muted/60 px-2 py-0.5 rounded border">
+                              <span className="font-mono font-bold text-xs bg-muted/60 px-2 py-0.5 rounded border border-border/60">
                                 {q.quotation_number}
                               </span>
                               <Badge
@@ -2606,11 +2596,11 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                               </Badge>
                             </div>
                             {q.notes && (
-                              <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mt-1">
+                              <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
                                 {q.notes}
                               </p>
                             )}
-                            <div className="text-[11px] text-slate-500 dark:text-slate-400 pt-1">
+                            <div className="text-[11px] text-muted-foreground pt-1">
                               Created {formatDate(q.created_at)}
                               {q.sent_at && ` • Sent ${formatDate(q.sent_at)}`}
                             </div>
@@ -2618,10 +2608,10 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
 
                           <div className="flex sm:flex-col items-end justify-between sm:justify-center gap-2 shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0">
                             <div className="text-left sm:text-right">
-                              <div className="font-bold text-lg tabular-nums text-slate-950 dark:text-white tracking-[-0.03em]">
+                              <div className="font-bold text-lg tabular-nums text-foreground tracking-tight">
                                 {formatCurrency(q.amount)}
                               </div>
-                              <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                              <span className="text-[10px] text-muted-foreground">
                                 Contract Package
                               </span>
                             </div>
@@ -2665,7 +2655,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                                             );
                                           }
                                         }}
-                                        className="h-6 px-2 text-[11px] border-slate-200 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                        className="h-6 px-2 text-[11px] border-border/80 text-muted-foreground hover:text-foreground hover:bg-muted"
                                       >
                                         <MessageSquareQuote className="h-3 w-3 mr-1" />
                                         <span>Negotiate</span>
@@ -2704,7 +2694,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                                           );
                                         }
                                       }}
-                                      className="h-6 px-2 text-[11px] bg-emerald-600 hover:bg-emerald-700 text-white"
+                                      className="h-6 px-2 text-[11px] bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs"
                                     >
                                       <CheckCircle2 className="h-3 w-3 mr-1" />
                                       <span>Accept & Book</span>
@@ -2733,14 +2723,14 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                 <PostProductionTracker lead={lead} profile={profile} />
 
                 {/* Shoot Call Sheet Details */}
-                <Card className="shadow-[0_1px_2px_rgba(15,23,42,0.06),0_8px_22px_rgba(15,23,42,0.035)]">
-                  <CardHeader className="pb-3 border-b flex flex-row items-center justify-between">
+                <Card className="border border-border/80 bg-card text-card-foreground shadow-2xs rounded-xl overflow-hidden">
+                  <CardHeader className="pb-3 border-b border-border/60 bg-muted/20 flex flex-row items-center justify-between">
                     <div>
-                      <CardTitle className="text-[15px] font-semibold tracking-[-0.01em] flex items-center gap-2">
-                        <Film className="h-4 w-4 text-slate-500" />
+                      <CardTitle className="text-[15px] font-semibold tracking-[-0.01em] flex items-center gap-2 text-foreground">
+                        <Film className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
                         <span>Shoot Call Sheet & Crew Briefing</span>
                       </CardTitle>
-                      <CardDescription className="text-xs">
+                      <CardDescription className="text-xs text-muted-foreground">
                         Ceremony schedule, crew contact list, and equipment plan
                       </CardDescription>
                     </div>
@@ -2751,9 +2741,9 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                         <Button
                           variant="outline"
                           size="sm"
-                          className="h-7 text-xs gap-1.5"
+                          className="h-7 text-xs gap-1.5 border-border/80 hover:bg-muted"
                         >
-                          <Share2 className="h-3.5 w-3.5 text-slate-500" />
+                          <Share2 className="h-3.5 w-3.5 text-muted-foreground" />
                           <span>Share Call Sheet</span>
                         </Button>
                       }
@@ -2761,29 +2751,29 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                   </CardHeader>
                   <CardContent className="p-4 text-xs space-y-3">
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      <div className="p-3 bg-white dark:bg-slate-950/20 border rounded-xl">
-                        <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 block">
+                      <div className="p-3 bg-muted/30 border border-border/80 rounded-xl">
+                        <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground block">
                           Main Event
                         </span>
-                        <span className="font-bold text-slate-900 dark:text-slate-100 text-sm">
+                        <span className="font-bold text-foreground text-sm">
                           {lead.event_type}
                         </span>
                       </div>
-                      <div className="p-3 bg-white dark:bg-slate-950/20 border rounded-xl">
-                        <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 block">
+                      <div className="p-3 bg-muted/30 border border-border/80 rounded-xl">
+                        <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground block">
                           Shoot Date
                         </span>
-                        <span className="font-bold text-slate-900 dark:text-slate-100 text-sm">
+                        <span className="font-bold text-foreground text-sm">
                           {lead.event_date
                             ? formatDate(lead.event_date)
                             : "TBD"}
                         </span>
                       </div>
-                      <div className="p-3 bg-white dark:bg-slate-950/20 border rounded-xl">
-                        <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 block">
+                      <div className="p-3 bg-muted/30 border border-border/80 rounded-xl">
+                        <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground block">
                           Location / Venue
                         </span>
-                        <span className="font-bold text-slate-900 dark:text-slate-100 text-sm line-clamp-1">
+                        <span className="font-bold text-foreground text-sm line-clamp-1">
                           {lead.location || "TBD"}
                         </span>
                       </div>
@@ -2795,24 +2785,24 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
               {/* TAB 4: NOTES & COMMUNICATIONS */}
               <TabsContent value="activity" className="space-y-6 mt-0">
                 {/* Internal Studio Notes with Quick Inline Input */}
-                <Card className="shadow-[0_1px_2px_rgba(15,23,42,0.06),0_8px_22px_rgba(15,23,42,0.035)]">
-                  <CardHeader className="pb-3 border-b">
+                <Card className="border border-border/80 bg-card text-card-foreground shadow-2xs rounded-xl overflow-hidden">
+                  <CardHeader className="pb-3 border-b border-border/60 bg-muted/20">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                       <div className="space-y-0.5">
-                        <CardTitle className="text-[15px] font-semibold tracking-[-0.01em] flex items-center gap-2">
-                          <StickyNote className="h-4 w-4 text-slate-500" />
+                        <CardTitle className="text-[15px] font-semibold tracking-[-0.01em] flex items-center gap-2 text-foreground">
+                          <StickyNote className="h-4 w-4 text-muted-foreground" />
                           <span>Internal Studio Notes ({notes.length})</span>
                         </CardTitle>
-                        <CardDescription className="text-xs">
+                        <CardDescription className="text-xs text-muted-foreground">
                           Private internal notes, crew instructions, and studio
                           reminders
                         </CardDescription>
                       </div>
                       <Badge
                         variant="outline"
-                        className="text-[10px] font-semibold bg-slate-1000/10 text-slate-500 dark:text-slate-400 border-slate-200 gap-1 w-fit"
+                        className="text-[10px] font-semibold bg-muted/60 text-muted-foreground border-border/60 gap-1 w-fit"
                       >
-                        <Lock className="h-3 w-3 text-slate-500" />
+                        <Lock className="h-3 w-3 text-muted-foreground" />
                         <span>Studio Team Only — Not Visible to Client</span>
                       </Badge>
                     </div>
@@ -2830,7 +2820,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                         type="submit"
                         size="sm"
                         disabled={!quickNote.trim() || isAddingNote}
-                        className="text-xs gap-1 shrink-0 font-semibold"
+                        className="text-xs gap-1 shrink-0 font-semibold rounded-lg shadow-2xs"
                       >
                         {isAddingNote ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -2842,7 +2832,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                     </form>
 
                     {notes.length === 0 ? (
-                      <div className="text-xs text-slate-500 dark:text-slate-400 text-center py-6 border border-dashed rounded-xl bg-muted/10">
+                      <div className="text-xs text-muted-foreground text-center py-6 border border-dashed rounded-xl bg-muted/10">
                         No internal studio notes logged yet. Use the field above
                         to add notes for your photography & video crew.
                       </div>
@@ -2851,14 +2841,14 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                         {notes.map((n) => (
                           <div
                             key={n.id}
-                            className="p-3.5 bg-white dark:bg-slate-900/35 border border-slate-200 rounded-2xl text-xs space-y-1.5 shadow-[0_1px_2px_rgba(15,23,42,0.05)] hover:border-slate-200 transition-colors"
+                            className="p-3.5 bg-card border border-border/80 rounded-xl text-xs space-y-1.5 shadow-2xs hover:border-border transition-colors"
                           >
-                            <p className="text-slate-900 dark:text-slate-100 leading-relaxed whitespace-pre-wrap">
+                            <p className="text-foreground leading-relaxed whitespace-pre-wrap">
                               {n.content}
                             </p>
-                            <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 pt-1 border-t border-border/40">
+                            <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-1 border-t border-border/40">
                               <span className="flex items-center gap-1 font-medium">
-                                <Lock className="h-2.5 w-2.5 text-slate-500" />
+                                <Lock className="h-2.5 w-2.5 text-muted-foreground" />
                                 <span>Internal Studio Note</span>
                               </span>
                               <span className="font-medium">
@@ -2873,17 +2863,17 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                 </Card>
 
                 {/* Communication Log */}
-                <Card className="shadow-[0_1px_2px_rgba(15,23,42,0.06),0_8px_22px_rgba(15,23,42,0.035)]">
-                  <CardHeader className="pb-3 border-b">
+                <Card className="border border-border/80 bg-card text-card-foreground shadow-2xs rounded-xl overflow-hidden">
+                  <CardHeader className="pb-3 border-b border-border/60 bg-muted/20">
                     <div className="flex items-center justify-between">
                       <div className="space-y-0.5">
-                        <CardTitle className="text-[15px] font-semibold tracking-[-0.01em] flex items-center gap-2">
-                          <MessageSquareQuote className="h-4 w-4 text-slate-700 dark:text-slate-200" />
+                        <CardTitle className="text-[15px] font-semibold tracking-[-0.01em] flex items-center gap-2 text-foreground">
+                          <MessageSquareQuote className="h-4 w-4 text-muted-foreground" />
                           <span>
                             Client Communication Log ({communications.length})
                           </span>
                         </CardTitle>
-                        <CardDescription className="text-xs">
+                        <CardDescription className="text-xs text-muted-foreground">
                           Audit record of phone calls, WhatsApp messages, and
                           email interactions
                         </CardDescription>
@@ -2895,7 +2885,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                           <Button
                             variant="outline"
                             size="sm"
-                            className="h-7 text-xs gap-1.5 font-medium shadow-[0_1px_2px_rgba(15,23,42,0.05)]"
+                            className="h-7 text-xs gap-1.5 font-medium border-border/80 hover:bg-muted shadow-2xs"
                           >
                             <Plus className="h-3.5 w-3.5" />
                             <span>Log Interaction</span>
@@ -2906,7 +2896,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                   </CardHeader>
                   <CardContent className="p-4 space-y-3">
                     {communications.length === 0 ? (
-                      <div className="text-center py-6 text-xs text-slate-500 dark:text-slate-400 border border-dashed rounded-xl bg-muted/10">
+                      <div className="text-center py-6 text-xs text-muted-foreground border border-dashed rounded-xl bg-muted/10">
                         No communication logs recorded yet. Click "Log
                         Interaction" above to track calls, WhatsApp exchanges,
                         or client feedback.
@@ -2915,34 +2905,34 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                       communications.map((c) => (
                         <div
                           key={c.id}
-                          className="p-3.5 border rounded-xl bg-card text-xs space-y-2 shadow-[0_1px_2px_rgba(15,23,42,0.05)] hover:border-primary/30 transition-colors"
+                          className="p-3.5 border border-border/80 rounded-xl bg-card text-xs space-y-2 shadow-2xs hover:border-border transition-colors"
                         >
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
                               <Badge
                                 variant="outline"
-                                className={`text-[10px] font-bold uppercase tracking-wider ${
+                                className={`text-[10px] font-semibold uppercase tracking-wider ${
                                   c.direction?.toLowerCase() === "inbound"
                                     ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
-                                    : "bg-slate-1000/10 text-slate-500 dark:text-slate-400 border-slate-200"
+                                    : "bg-muted/60 text-muted-foreground border-border/60"
                                 }`}
                               >
                                 {c.direction || "Outbound"}
                               </Badge>
-                              <span className="font-bold text-slate-900 dark:text-slate-100 text-xs">
+                              <span className="font-semibold text-foreground text-xs">
                                 {c.contact_method}
                               </span>
                             </div>
-                            <span className="text-slate-500 dark:text-slate-400 text-[10px] font-medium">
+                            <span className="text-muted-foreground text-[10px] font-medium">
                               {formatDateTime(c.created_at)}
                             </span>
                           </div>
-                          <p className="text-slate-500 dark:text-slate-400 leading-relaxed">
+                          <p className="text-muted-foreground leading-relaxed">
                             {c.message}
                           </p>
                           {c.client_response && (
-                            <div className="p-2.5 bg-muted/40 rounded-lg text-slate-900 dark:text-slate-100 border-l-2 border-primary space-y-0.5">
-                              <span className="font-semibold text-slate-500 dark:text-slate-400 text-[10px] uppercase tracking-wider block">
+                            <div className="p-2.5 bg-muted/30 rounded-lg text-foreground border-l-2 border-primary space-y-0.5">
+                              <span className="font-semibold text-muted-foreground text-[10px] uppercase tracking-wider block">
                                 Client Response:
                               </span>
                               <p className="italic text-xs font-medium">
@@ -2957,10 +2947,10 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                 </Card>
 
                 {/* Complete Audit Trail Timeline */}
-                <Card className="shadow-[0_1px_2px_rgba(15,23,42,0.06),0_8px_22px_rgba(15,23,42,0.035)]">
-                  <CardHeader className="pb-3 border-b">
-                    <CardTitle className="text-[15px] font-semibold tracking-[-0.01em] flex items-center gap-2">
-                      <ActivityIcon className="h-4 w-4 text-slate-700 dark:text-slate-200" />
+                <Card className="border border-border/80 bg-card text-card-foreground shadow-2xs rounded-xl overflow-hidden">
+                  <CardHeader className="pb-3 border-b border-border/60 bg-muted/20">
+                    <CardTitle className="text-[15px] font-semibold tracking-[-0.01em] flex items-center gap-2 text-foreground">
+                      <ActivityIcon className="h-4 w-4 text-muted-foreground" />
                       <span>Audit Trail & Pipeline History</span>
                     </CardTitle>
                   </CardHeader>
@@ -2975,24 +2965,24 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
           {/* Right 1 Column: Sticky Relationship & Quick Actions Sidebar */}
           <div className="space-y-6 lg:sticky lg:top-20 self-start">
             {/* Client Relationship & SLA Intelligence Card */}
-            <Card className="shadow-[0_1px_2px_rgba(15,23,42,0.06),0_8px_22px_rgba(15,23,42,0.035)]">
-              <CardHeader className="pb-3 border-b bg-white dark:bg-slate-950/20">
-                <CardTitle className="text-sm font-semibold tracking-[-0.01em] flex items-center gap-2">
-                  <ShieldCheck className="h-4 w-4 text-slate-700 dark:text-slate-200" />
+            <Card className="border border-border/80 bg-card text-card-foreground shadow-2xs rounded-xl overflow-hidden">
+              <CardHeader className="pb-3 border-b border-border/60 bg-muted/20">
+                <CardTitle className="text-sm font-semibold tracking-[-0.01em] flex items-center gap-2 text-foreground">
+                  <ShieldCheck className="h-4 w-4 text-muted-foreground" />
                   <span>Relationship Summary</span>
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4 space-y-3 text-xs">
-                <div className="flex items-center justify-between border-b pb-2">
-                  <span className="text-slate-500 dark:text-slate-400">
+                <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                  <span className="text-muted-foreground">
                     Pipeline Stage
                   </span>
-                  <Badge variant="outline" className="font-bold text-[10px]">
+                  <Badge variant="outline" className="font-semibold text-[10px]">
                     {lead.lead_status}
                   </Badge>
                 </div>
-                <div className="flex items-center justify-between border-b pb-2">
-                  <span className="text-slate-500 dark:text-slate-400">
+                <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                  <span className="text-muted-foreground">
                     Contact Status
                   </span>
                   <Badge
@@ -3000,24 +2990,24 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                     className={`font-semibold text-[10px] ${
                       lead.contact_status !== "Not Contacted"
                         ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
-                        : "bg-muted text-slate-500 dark:text-slate-400"
+                        : "bg-muted text-muted-foreground"
                     }`}
                   >
                     {lead.contact_status}
                   </Badge>
                 </div>
-                <div className="flex items-center justify-between border-b pb-2">
-                  <span className="text-slate-500 dark:text-slate-400">
+                <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                  <span className="text-muted-foreground">
                     Last Contacted
                   </span>
-                  <span className="font-medium text-slate-900 dark:text-slate-100">
+                  <span className="font-medium text-foreground">
                     {lead.last_contacted_at
                       ? formatDateTime(lead.last_contacted_at)
                       : "Never"}
                   </span>
                 </div>
-                <div className="flex items-center justify-between border-b pb-2">
-                  <span className="text-slate-500 dark:text-slate-400">
+                <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                  <span className="text-muted-foreground">
                     Next Follow-up
                   </span>
                   <div className="text-right">
@@ -3031,7 +3021,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                         </span>
                       </span>
                     ) : (
-                      <span className="font-semibold text-slate-900 dark:text-slate-100">
+                      <span className="font-semibold text-foreground">
                         {lead.next_follow_up_at
                           ? formatDateTime(lead.next_follow_up_at)
                           : "None scheduled"}
@@ -3039,19 +3029,19 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                     )}
                   </div>
                 </div>
-                <div className="flex items-center justify-between border-b pb-2">
-                  <span className="text-slate-500 dark:text-slate-400">
+                <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                  <span className="text-muted-foreground">
                     Follow-up Touchpoints
                   </span>
-                  <span className="font-semibold text-slate-900 dark:text-slate-100">
+                  <span className="font-semibold text-foreground">
                     {lead.follow_up_count} times
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-500 dark:text-slate-400">
+                  <span className="text-muted-foreground">
                     Lead Created
                   </span>
-                  <span className="font-medium text-slate-900 dark:text-slate-100">
+                  <span className="font-medium text-foreground">
                     {formatDate(lead.created_at)}
                   </span>
                 </div>
@@ -3059,10 +3049,10 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
             </Card>
 
             {/* Quick Action Shortcuts Card */}
-            <Card className="shadow-[0_1px_2px_rgba(15,23,42,0.06),0_8px_22px_rgba(15,23,42,0.035)]">
-              <CardHeader className="pb-3 border-b bg-white dark:bg-slate-950/20">
-                <CardTitle className="text-sm font-semibold tracking-[-0.01em] flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-slate-500" />
+            <Card className="border border-border/80 bg-card text-card-foreground shadow-2xs rounded-xl overflow-hidden">
+              <CardHeader className="pb-3 border-b border-border/60 bg-muted/20">
+                <CardTitle className="text-sm font-semibold tracking-[-0.01em] flex items-center gap-2 text-foreground">
+                  <Sparkles className="h-4 w-4 text-muted-foreground" />
                   <span>Quick Actions</span>
                 </CardTitle>
               </CardHeader>
@@ -3071,7 +3061,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="w-full justify-start gap-2 text-xs border-emerald-500/30 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 font-medium"
+                    className="w-full justify-start gap-2 text-xs border-emerald-500/30 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 font-medium rounded-lg shadow-2xs"
                     asChild
                   >
                     <a
@@ -3081,7 +3071,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                       target="_blank"
                       rel="noreferrer"
                     >
-                      <MessageCircle className="h-3.5 w-3.5 text-slate-500" />
+                      <MessageCircle className="h-3.5 w-3.5" />
                       <span>WhatsApp Direct Chat</span>
                     </a>
                   </Button>
@@ -3096,7 +3086,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="w-full justify-start gap-2 text-xs border-emerald-500/30 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 font-medium"
+                        className="w-full justify-start gap-2 text-xs border-emerald-500/30 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 font-medium rounded-lg shadow-2xs"
                       >
                         <CreditCard className="h-3.5 w-3.5" />
                         <span>Record Client Payment</span>
@@ -3112,9 +3102,9 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="w-full justify-start gap-2 text-xs font-medium"
+                      className="w-full justify-start gap-2 text-xs font-medium rounded-lg border-border/80 hover:bg-muted shadow-2xs text-foreground"
                     >
-                      <Film className="h-3.5 w-3.5 text-slate-500" />
+                      <Film className="h-3.5 w-3.5 text-muted-foreground" />
                       <span>View / Send Call Sheet</span>
                     </Button>
                   }
@@ -3127,9 +3117,9 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="w-full justify-start gap-2 text-xs font-medium"
+                      className="w-full justify-start gap-2 text-xs font-medium rounded-lg border-border/80 hover:bg-muted shadow-2xs text-foreground"
                     >
-                      <FileText className="h-3.5 w-3.5 text-slate-500" />
+                      <FileText className="h-3.5 w-3.5 text-muted-foreground" />
                       <span>Send WhatsApp Proposal</span>
                     </Button>
                   }
@@ -3141,9 +3131,9 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="w-full justify-start gap-2 text-xs font-medium"
+                      className="w-full justify-start gap-2 text-xs font-medium rounded-lg border-border/80 hover:bg-muted shadow-2xs text-foreground"
                     >
-                      <Edit3 className="h-3.5 w-3.5" />
+                      <Edit3 className="h-3.5 w-3.5 text-muted-foreground" />
                       <span>Edit Lead & Event Details</span>
                     </Button>
                   }
@@ -3152,24 +3142,24 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
             </Card>
 
             {/* Quick Studio Notes Widget */}
-            <Card className="shadow-[0_1px_2px_rgba(15,23,42,0.06),0_8px_22px_rgba(15,23,42,0.035)]">
-              <CardHeader className="pb-3 border-b bg-white dark:bg-slate-950/20">
-                <CardTitle className="text-sm font-semibold tracking-[-0.01em] flex items-center gap-2">
-                  <StickyNote className="h-4 w-4 text-slate-500" />
+            <Card className="border border-border/80 bg-card text-card-foreground shadow-2xs rounded-xl overflow-hidden">
+              <CardHeader className="pb-3 border-b border-border/60 bg-muted/20">
+                <CardTitle className="text-sm font-semibold tracking-[-0.01em] flex items-center gap-2 text-foreground">
+                  <StickyNote className="h-4 w-4 text-muted-foreground" />
                   <span>Recent Studio Note</span>
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4 text-xs space-y-3">
                 {notes.length === 0 ? (
-                  <p className="text-slate-500 dark:text-slate-400 text-center py-2 italic">
+                  <p className="text-muted-foreground text-center py-2 italic">
                     No notes logged yet.
                   </p>
                 ) : (
-                  <div className="p-3 bg-white dark:bg-slate-950/20 border border-slate-200 rounded-2xl space-y-1">
-                    <p className="text-slate-900 dark:text-slate-100 line-clamp-3 leading-relaxed">
+                  <div className="p-3 bg-muted/30 border border-border/80 rounded-xl space-y-1">
+                    <p className="text-foreground line-clamp-3 leading-relaxed">
                       {notes[0].content}
                     </p>
-                    <span className="text-[10px] text-slate-500 dark:text-slate-400 block text-right font-medium">
+                    <span className="text-[10px] text-muted-foreground block text-right font-medium">
                       {formatDate(notes[0].created_at)}
                     </span>
                   </div>
@@ -3177,7 +3167,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="w-full text-xs text-slate-700 dark:text-slate-200 justify-center gap-1 h-7 font-medium"
+                  className="w-full text-xs text-muted-foreground hover:text-foreground justify-center gap-1 h-7 font-medium"
                   onClick={() => setActiveTab("activity")}
                 >
                   <span>View all {notes.length} notes & comms</span>
