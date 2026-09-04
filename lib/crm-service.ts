@@ -238,6 +238,7 @@ export const getLeads = cache(async (filters: GetLeadsFilters = {}): Promise<Lea
         { data: nData },
         { data: delData },
         { data: expData },
+        { data: pData },
       ] = await Promise.all([
         supabase
           .from("leads")
@@ -274,6 +275,10 @@ export const getLeads = cache(async (filters: GetLeadsFilters = {}): Promise<Lea
           .from("lead_expenses")
           .select("id, lead_id, owner_id, expense_name, expense_category, amount, notes, is_custom, created_at, updated_at")
           .order("created_at", { ascending: true }),
+        supabase
+          .from("payments")
+          .select("id, owner_id, booking_id, amount, payment_type, payment_method, payment_date, reference, notes, created_at")
+          .order("payment_date", { ascending: false }),
       ]);
 
       if (lData) leadsData = lData as any[];
@@ -286,6 +291,7 @@ export const getLeads = cache(async (filters: GetLeadsFilters = {}): Promise<Lea
       if (nData) notesData = nData as any[];
       if (delData) deliverablesData = delData as any[];
       if (expData) expensesData = expData as any[];
+      if (pData) memoryPayments = pData as any[];
     } catch (err) {
       console.error("Error fetching leads from Supabase:", err);
     }
@@ -302,11 +308,28 @@ export const getLeads = cache(async (filters: GetLeadsFilters = {}): Promise<Lea
     }
   }
 
+  const paymentMap = new Map<string, Payment[]>();
+  for (const p of memoryPayments) {
+    if (p.booking_id) {
+      const arr = paymentMap.get(p.booking_id) || [];
+      arr.push(p);
+      paymentMap.set(p.booking_id, arr);
+    }
+  }
+
   const bookingMap = new Map<string, Booking[]>();
   for (const b of bookingsData) {
     if (b.lead_id) {
+      const bPayments = paymentMap.get(b.id) || [];
+      const totalPaid = bPayments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
+      const computedRemaining = Math.max(0, (Number(b.total_amount) || 0) - totalPaid);
+      const bookingWithPayments = {
+        ...b,
+        payments: bPayments,
+        remaining_amount: computedRemaining,
+      };
       const arr = bookingMap.get(b.lead_id) || [];
-      arr.push(b);
+      arr.push(bookingWithPayments);
       bookingMap.set(b.lead_id, arr);
     }
   }
@@ -388,9 +411,12 @@ export const getLeads = cache(async (filters: GetLeadsFilters = {}): Promise<Lea
     const leadExpenses = expenseMap.get(lead.id) || [];
 
     if (lead.lead_status === "Accepted / Booked" && leadBookings.length === 0) {
-      const totalAmount = Number(lead.budget) || 300000;
-      const advanceAmount = Math.round(totalAmount * 0.35);
-      const remainingAmount = totalAmount - advanceAmount;
+      const quoteAmount = leadQuotations.find((q) => q.status === "Accepted")?.amount || leadQuotations[0]?.amount;
+      const totalAmount = Number(quoteAmount) || Number(lead.budget) || 0;
+      const bPayments = paymentMap.get("b-" + lead.id) || [];
+      const totalPaid = bPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+      const advanceP = bPayments.find((p) => p.payment_type === "Advance");
+      const remainingAmount = Math.max(0, totalAmount - totalPaid);
       leadBookings = [
         {
           id: "b-" + lead.id,
@@ -400,11 +426,12 @@ export const getLeads = cache(async (filters: GetLeadsFilters = {}): Promise<Lea
           booking_status: "Booking Confirmed",
           booking_date: (lead.created_at || new Date().toISOString()).split("T")[0],
           total_amount: totalAmount,
-          advance_amount: advanceAmount,
+          advance_amount: advanceP ? advanceP.amount : 0,
           remaining_amount: remainingAmount,
-          advance_paid_at: null,
+          advance_paid_at: advanceP ? advanceP.payment_date : null,
           final_payment_due_date: lead.event_date || null,
           notes: "Confirmed booking contract.",
+          payments: bPayments,
           created_at: lead.created_at || new Date().toISOString(),
           updated_at: lead.updated_at || new Date().toISOString(),
         },
@@ -419,8 +446,33 @@ export const getLeads = cache(async (filters: GetLeadsFilters = {}): Promise<Lea
       } catch {}
     }
 
+    // Auto-transition leads to "Follow-up Required" after 24 hours, on subsequent calendar days, or if next_follow_up_at has arrived/passed
+    let resolvedStatus: LeadStatus = lead.lead_status;
+    const isEarlyStage = resolvedStatus === "New Enquiry" || resolvedStatus === "Contacted";
+    const leadCreatedMs = lead.created_at ? new Date(lead.created_at).getTime() : Date.now();
+    const isDifferentDay = new Date(leadCreatedMs).toDateString() !== new Date().toDateString();
+    const isOver24h = Date.now() - leadCreatedMs >= 24 * 60 * 60 * 1000;
+    const isFollowUpOverdue = lead.next_follow_up_at ? new Date(lead.next_follow_up_at).getTime() <= Date.now() : false;
+
+    if (isEarlyStage && (isDifferentDay || isOver24h || isFollowUpOverdue)) {
+      resolvedStatus = "Follow-up Required";
+      if (live) {
+        createServerSupabase().then((supabase) => {
+          supabase
+            .from("leads")
+            .update({
+              lead_status: "Follow-up Required",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", lead.id)
+            .then(() => {});
+        }).catch(() => {});
+      }
+    }
+
     return {
       ...lead,
+      lead_status: resolvedStatus,
       requirements: Array.isArray(lead.requirements) ? lead.requirements : [],
       profit_percentage: lead.profit_percentage ?? 30,
       source: (lead as any).source || (lead as any).lead_source || "Website",
@@ -512,6 +564,8 @@ export const getLeadById = cache(async (id: string): Promise<LeadWithDetails | n
           { data: nData },
           { data: delData },
           { data: expData },
+          { data: pData },
+          { data: evData },
         ] = await Promise.all([
           supabase.from("quotations").select("id, owner_id, lead_id, quotation_number, amount, valid_until, status, sent_at, viewed_at, accepted_at, rejected_at, rejection_reason, rejection_reason_other, notes, created_at, updated_at").eq("lead_id", dbLead.id),
           supabase.from("bookings").select("id, owner_id, lead_id, client_id, booking_status, booking_date, confirmed_at, total_amount, advance_amount, advance_due_date, advance_paid_at, remaining_amount, final_payment_due_date, final_payment_paid_at, notes, created_at, updated_at").eq("lead_id", dbLead.id),
@@ -521,13 +575,15 @@ export const getLeadById = cache(async (id: string): Promise<LeadWithDetails | n
           supabase.from("notes").select("id, owner_id, lead_id, content, created_at, updated_at").eq("lead_id", dbLead.id).order("created_at", { ascending: false }),
           supabase.from("lead_deliverables").select("id, lead_id, owner_id, name, type, quantity, notes, is_custom, created_at, updated_at").eq("lead_id", dbLead.id).order("created_at", { ascending: true }),
           supabase.from("lead_expenses").select("id, lead_id, owner_id, expense_name, expense_category, amount, notes, is_custom, created_at, updated_at").eq("lead_id", dbLead.id).order("created_at", { ascending: true }),
+          supabase.from("payments").select("id, owner_id, booking_id, amount, payment_type, payment_method, payment_date, reference, notes, created_at").order("payment_date", { ascending: false }),
+          supabase.from("events").select("*").eq("lead_id", dbLead.id).order("event_date", { ascending: true }),
         ]);
 
+        let paymentsList = (pData as any) || [];
         let resolvedBookings: any[] = bData || [];
         if (dbLead.lead_status === "Accepted / Booked" && resolvedBookings.length === 0) {
-          const totalAmount = Number(dbLead.budget) || 300000;
-          const advanceAmount = Math.round(totalAmount * 0.35);
-          const remainingAmount = totalAmount - advanceAmount;
+          const quoteAmount = (qData as any[])?.find((q) => q.status === "Accepted")?.amount || (qData as any[])?.[0]?.amount;
+          const totalAmount = Number(quoteAmount) || Number(dbLead.budget) || 0;
           resolvedBookings = [
             {
               id: "b-" + dbLead.id,
@@ -538,8 +594,8 @@ export const getLeadById = cache(async (id: string): Promise<LeadWithDetails | n
               booking_status: "Booking Confirmed",
               booking_date: (dbLead.created_at || new Date().toISOString()).split("T")[0],
               total_amount: totalAmount,
-              advance_amount: advanceAmount,
-              remaining_amount: remainingAmount,
+              advance_amount: 0,
+              remaining_amount: totalAmount,
               advance_paid_at: null,
               final_payment_due_date: dbLead.event_date || null,
               notes: "Confirmed booking contract.",
@@ -549,6 +605,17 @@ export const getLeadById = cache(async (id: string): Promise<LeadWithDetails | n
           ];
         }
 
+        resolvedBookings = resolvedBookings.map((b: any) => {
+          const bPayments = paymentsList.filter((p: any) => p.booking_id === b.id);
+          const totalPaid = bPayments.reduce((acc: number, p: any) => acc + (Number(p.amount) || 0), 0);
+          const computedRemaining = Math.max(0, (Number(b.total_amount) || 0) - totalPaid);
+          return {
+            ...b,
+            payments: bPayments,
+            remaining_amount: computedRemaining,
+          };
+        });
+
         let postProdData: any = {};
         const postProdNote = ((nData as any) || []).find((n: any) => n.content?.startsWith("[POST_PRODUCTION]:"));
         if (postProdNote) {
@@ -557,8 +624,20 @@ export const getLeadById = cache(async (id: string): Promise<LeadWithDetails | n
           } catch {}
         }
 
+        let resolvedStatus: LeadStatus = dbLead.lead_status;
+        const isEarlyStage = resolvedStatus === "New Enquiry" || resolvedStatus === "Contacted";
+        const leadCreatedMs = dbLead.created_at ? new Date(dbLead.created_at).getTime() : Date.now();
+        const isDifferentDay = new Date(leadCreatedMs).toDateString() !== new Date().toDateString();
+        const isOver24h = Date.now() - leadCreatedMs >= 24 * 60 * 60 * 1000;
+        const isFollowUpOverdue = dbLead.next_follow_up_at ? new Date(dbLead.next_follow_up_at).getTime() <= Date.now() : false;
+
+        if (isEarlyStage && (isDifferentDay || isOver24h || isFollowUpOverdue)) {
+          resolvedStatus = "Follow-up Required";
+        }
+
         return {
           ...dbLead,
+          lead_status: resolvedStatus,
           requirements: Array.isArray(dbLead.requirements) ? dbLead.requirements : [],
           profit_percentage: dbLead.profit_percentage ?? 30,
           source: dbLead.source || "Website",
@@ -576,6 +655,7 @@ export const getLeadById = cache(async (id: string): Promise<LeadWithDetails | n
           notes: (nData as any) || [],
           deliverables: (delData as any) || [],
           expenses: (expData as any) || [],
+          events: (evData as any) || memoryEvents.filter((e) => e.lead_id === dbLead.id),
         };
       }
     } catch (err) {
@@ -720,9 +800,14 @@ export const getBookings = cache(async (): Promise<Booking[]> => {
   const existingLeadIds = new Set(rawBookings.map((b) => b.lead_id).filter(Boolean));
   for (const l of leads) {
     if (l.lead_status === "Accepted / Booked" && !existingLeadIds.has(l.id)) {
-      const totalAmount = Number(l.budget) || 25000;
-      const advanceAmount = Math.round(totalAmount * 0.35);
-      const remainingAmount = totalAmount - advanceAmount;
+      const acceptedQuote = (l.quotations || []).find((q) => q.status === "Accepted");
+      const latestQuote = (l.quotations || [])[0];
+      const totalAmount = Number(acceptedQuote?.amount) || Number(latestQuote?.amount) || Number(l.budget) || 0;
+      const bPayments = paymentMap.get("b-" + l.id) || [];
+      const totalPaid = bPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+      const advanceP = bPayments.find((p) => p.payment_type === "Advance");
+      const remainingAmount = Math.max(0, totalAmount - totalPaid);
+
       rawBookings.push({
         id: "b-" + l.id,
         lead_id: l.id,
@@ -731,9 +816,9 @@ export const getBookings = cache(async (): Promise<Booking[]> => {
         booking_status: "Booking Confirmed",
         booking_date: (l.created_at || new Date().toISOString()).split("T")[0],
         total_amount: totalAmount,
-        advance_amount: advanceAmount,
+        advance_amount: advanceP ? advanceP.amount : 0,
         remaining_amount: remainingAmount,
-        advance_paid_at: null,
+        advance_paid_at: advanceP ? advanceP.payment_date : null,
         final_payment_due_date: l.event_date || null,
         notes: "Confirmed booking contract.",
         created_at: l.created_at || new Date().toISOString(),
@@ -742,12 +827,26 @@ export const getBookings = cache(async (): Promise<Booking[]> => {
     }
   }
 
-  return rawBookings.map((b) => ({
-    ...b,
-    lead: leadMap.get(b.lead_id),
-    client: clientMap.get(b.client_id) || (b.lead_id ? leadMap.get(b.lead_id)?.client : undefined),
-    payments: paymentMap.get(b.id) || [],
-  }));
+  return rawBookings.map((b) => {
+    const bPayments = paymentMap.get(b.id) || [];
+    const totalPaid = bPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    const advanceP = bPayments.find((p) => p.payment_type === "Advance");
+    const lead = leadMap.get(b.lead_id);
+    const quoteAmount = lead?.quotations?.find((q) => q.status === "Accepted")?.amount || lead?.quotations?.[0]?.amount;
+    const computedTotal = Number(b.total_amount) || Number(quoteAmount) || Number(lead?.budget) || 0;
+    const computedRemaining = Math.max(0, computedTotal - totalPaid);
+
+    return {
+      ...b,
+      total_amount: computedTotal,
+      remaining_amount: computedRemaining,
+      advance_amount: advanceP ? advanceP.amount : (b.advance_amount || 0),
+      advance_paid_at: advanceP ? advanceP.payment_date : b.advance_paid_at,
+      lead,
+      client: clientMap.get(b.client_id) || (b.lead_id ? lead?.client : undefined),
+      payments: bPayments,
+    };
+  });
 });
 
 export const getPayments = cache(async (): Promise<Payment[]> => {
@@ -858,7 +957,8 @@ export async function createLeadAction(data: {
   phone?: string;
   whatsapp?: string;
   email?: string;
-  eventType: EventType;
+  eventType: string;
+  customEventType?: string;
   eventDate?: string;
   eventStartTime?: string;
   eventEndTime?: string;
@@ -869,6 +969,14 @@ export async function createLeadAction(data: {
   requirements?: string[];
   otherRequirement?: string;
   profitPercentage?: number;
+  events?: Array<{
+    eventType: string;
+    eventDate: string;
+    eventStartTime?: string;
+    eventEndTime?: string;
+    location?: string;
+    notes?: string;
+  }>;
 }) {
   const cId = "c-" + Date.now();
   const lId = "l-" + Date.now();
@@ -876,6 +984,9 @@ export async function createLeadAction(data: {
   const source = data.source || "Website";
   const reqs = data.requirements || [];
   const profitPct = data.profitPercentage ?? 30;
+  const effectiveEventType = (data.eventType === "Other" && data.customEventType?.trim())
+    ? data.customEventType.trim()
+    : data.eventType;
 
   const newClient: Client = {
     id: cId,
@@ -893,7 +1004,7 @@ export async function createLeadAction(data: {
     id: lId,
     client_id: cId,
     owner_id: memoryProfile.id,
-    event_type: data.eventType,
+    event_type: effectiveEventType as any,
     event_date: data.eventDate || null,
     event_start_time: data.eventStartTime || null,
     event_end_time: data.eventEndTime || null,
@@ -1069,6 +1180,37 @@ export async function createLeadAction(data: {
             }
           }
 
+          // Insert client events if any
+          const eventsList = (data.events && data.events.length > 0)
+            ? data.events
+            : (data.eventDate ? [{
+                eventType: effectiveEventType,
+                eventDate: data.eventDate,
+                eventStartTime: data.eventStartTime,
+                eventEndTime: data.eventEndTime,
+                location: data.location,
+              }] : []);
+
+          if (eventsList.length > 0) {
+            const dbEvents = eventsList.map((ev) => ({
+              owner_id: ownerId,
+              client_id: dbClient.id,
+              lead_id: dbLead.id,
+              event_name: `${ev.eventType} - ${data.clientName}`,
+              event_type: ev.eventType,
+              event_date: ev.eventDate,
+              start_time: ev.eventStartTime || null,
+              end_time: ev.eventEndTime || null,
+              location: ev.location || data.location || null,
+              status: "Scheduled",
+              notes: ev.notes || null,
+            }));
+            const { data: insertedEvents } = await supabase.from("events").insert(dbEvents).select();
+            if (insertedEvents) {
+              memoryEvents.unshift(...(insertedEvents as any[]));
+            }
+          }
+
           // Sync into memory arrays
           memoryClients.unshift(dbClient);
           memoryLeads.unshift(dbLead);
@@ -1082,6 +1224,35 @@ export async function createLeadAction(data: {
   }
 
   // Memory fallback
+  const eventsList = (data.events && data.events.length > 0)
+    ? data.events
+    : (data.eventDate ? [{
+        eventType: effectiveEventType,
+        eventDate: data.eventDate,
+        eventStartTime: data.eventStartTime,
+        eventEndTime: data.eventEndTime,
+        location: data.location,
+      }] : []);
+
+  for (const ev of eventsList) {
+    memoryEvents.unshift({
+      id: "ev-" + Date.now() + Math.random().toString(36).substring(2, 6),
+      owner_id: memoryProfile.id,
+      client_id: cId,
+      lead_id: lId,
+      event_name: `${ev.eventType} - ${data.clientName}`,
+      event_type: ev.eventType as any,
+      event_date: ev.eventDate,
+      start_time: ev.eventStartTime || null,
+      end_time: ev.eventEndTime || null,
+      location: ev.location || data.location || null,
+      status: "Upcoming",
+      notes: ev.notes || null,
+      created_at: now,
+      updated_at: now,
+    });
+  }
+
   memoryClients.unshift(newClient);
   memoryLeads.unshift(newLead);
   memoryActivities.unshift(newActivity);
@@ -1379,9 +1550,13 @@ export async function ensureBookingForLead(leadId: string): Promise<Booking | nu
       const { data: dbLead } = await supabase.from("leads").select("*").eq("id", leadId).maybeSingle();
       if (dbLead) {
         const ownerId = await getAuthenticatedOwnerId();
-        const totalAmount = Number(dbLead.budget) || 300000;
-        const advanceAmount = Math.round(totalAmount * 0.35);
-        const remainingAmount = totalAmount - advanceAmount;
+        const { data: qList } = await supabase.from("quotations").select("amount, status").eq("lead_id", leadId);
+        const acceptedQ = (qList || []).find((q: any) => q.status === "Accepted");
+        const anyQ = (qList || [])[0];
+        const quoteAmount = acceptedQ?.amount || anyQ?.amount;
+        const totalAmount = Number(quoteAmount) || Number(dbLead.budget) || 0;
+        const advanceAmount = 0;
+        const remainingAmount = totalAmount;
 
         const { data: newDbBooking, error } = await supabase
           .from("bookings")
@@ -1412,9 +1587,10 @@ export async function ensureBookingForLead(leadId: string): Promise<Booking | nu
   }
 
   if (lead) {
-    const totalAmount = Number(lead.budget) || 300000;
-    const advanceAmount = Math.round(totalAmount * 0.35);
-    const remainingAmount = totalAmount - advanceAmount;
+    const quoteAmount = memoryQuotations.find((q) => q.lead_id === leadId && q.status === "Accepted")?.amount || memoryQuotations.find((q) => q.lead_id === leadId)?.amount;
+    const totalAmount = Number(quoteAmount) || Number(lead.budget) || 0;
+    const advanceAmount = 0;
+    const remainingAmount = totalAmount;
     const memBooking: Booking = {
       id: "b-" + Date.now(),
       lead_id: lead.id,
@@ -2054,15 +2230,37 @@ export async function recordPaymentAction(data: {
 
           await supabase.from("bookings").update(updates).eq("id", targetBookingId);
 
-          await supabase.from("activities").insert({
-            lead_id: dbB.lead_id,
-            client_id: dbB.client_id,
-            owner_id: ownerId,
-            activity_type: "PAYMENT_RECEIVED",
+          if (dbB.lead_id) {
+            await supabase
+              .from("leads")
+              .update({
+                lead_status: "Accepted / Booked",
+                updated_at: now,
+              })
+              .eq("id", dbB.lead_id);
+
+            const memL = memoryLeads.find((l) => l.id === dbB.lead_id);
+            if (memL) {
+              memL.lead_status = "Accepted / Booked";
+              memL.updated_at = now;
+            }
+          }
+
+          await recordSupabaseActivity(supabase, {
+            leadId: dbB.lead_id,
+            clientId: dbB.client_id,
+            ownerId,
+            activityType: "PAYMENT_RECEIVED",
             title: "Payment Received",
             description: `Payment receipt of ₹${data.amount.toLocaleString("en-IN")} logged via ${data.paymentMethod}.`,
             metadata: { amount: data.amount, method: data.paymentMethod },
           });
+
+          const updatedBooking = {
+            ...dbB,
+            ...updates,
+          };
+          return { success: true, payment: dbP || newPayment, updatedBooking };
         }
 
         if (dbP) return { success: true, payment: dbP };
@@ -2072,7 +2270,8 @@ export async function recordPaymentAction(data: {
     }
   }
 
-  return { success: true, payment: newPayment };
+  const updatedBooking = booking ? { ...booking } : undefined;
+  return { success: true, payment: newPayment, updatedBooking };
 }
 
 export async function completeFollowUpAction(

@@ -78,7 +78,10 @@ export function WhatsAppProposalDialog({ lead, trigger, profile }: WhatsAppPropo
     }
 
     const priceText = quotationAmount > 0 ? `₹${quotationAmount.toLocaleString("en-IN")}` : "Custom Estimate";
-    const advanceAmount = quotationAmount > 0 ? `₹${Math.round(quotationAmount * 0.35).toLocaleString("en-IN")} (35%)` : "35% Token";
+    const bookingAdvance = lead.bookings?.[0]?.advance_amount;
+    const advanceAmount = bookingAdvance && bookingAdvance > 0
+      ? `₹${bookingAdvance.toLocaleString("en-IN")}`
+      : (quotationAmount > 0 ? `₹${Math.round(quotationAmount * 0.35).toLocaleString("en-IN")} (Token)` : "Advance Token");
 
     const studioName = profile?.business_name || "Dlight Studios";
     const photographerName = profile?.full_name || "Bruno Sangeeth";

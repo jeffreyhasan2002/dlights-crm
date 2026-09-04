@@ -47,7 +47,8 @@ export async function createLeadServerAction(formData: {
   phone?: string;
   whatsapp?: string;
   email?: string;
-  eventType: EventType;
+  eventType: string;
+  customEventType?: string;
   eventDate?: string;
   eventStartTime?: string;
   eventEndTime?: string;
@@ -58,11 +59,20 @@ export async function createLeadServerAction(formData: {
   requirements?: string[];
   otherRequirement?: string;
   profitPercentage?: number;
+  events?: Array<{
+    eventType: string;
+    eventDate: string;
+    eventStartTime?: string;
+    eventEndTime?: string;
+    location?: string;
+    notes?: string;
+  }>;
 }) {
-  const res = await createLeadAction(formData);
+  const res = await createLeadAction(formData as any);
   revalidatePath("/dashboard");
   revalidatePath("/crm");
   revalidatePath("/clients");
+  revalidatePath("/events");
   return res;
 }
 

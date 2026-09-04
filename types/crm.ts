@@ -372,6 +372,7 @@ export interface LeadWithDetails extends Lead {
   deliverables?: LeadDeliverable[];
   expenses?: LeadExpense[];
   expense_calculation?: ExpenseCalculation;
+  events?: CRMEvent[];
 }
 
 export interface DashboardMetrics {

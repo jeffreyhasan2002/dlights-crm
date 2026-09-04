@@ -140,16 +140,26 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
 
   const overdue = isOverdue(lead.next_follow_up_at);
   const quotations = lead.quotations || [];
-  const booking = lead.bookings?.[0] || (lead.lead_status === "Accepted / Booked" ? {
+  const acceptedQuote = quotations.find((q) => q.status === "Accepted");
+  const latestQuote = quotations[0];
+  const derivedContractTotal =
+    Number(lead.bookings?.[0]?.total_amount) ||
+    Number(acceptedQuote?.amount) ||
+    Number(latestQuote?.amount) ||
+    Number(lead.budget) ||
+    0;
+
+  const rawBooking = lead.bookings?.[0];
+  const booking: Booking | null = rawBooking || (lead.lead_status === "Accepted / Booked" || derivedContractTotal > 0 ? {
     id: "b-" + lead.id,
     lead_id: lead.id,
     client_id: lead.client_id,
     owner_id: lead.owner_id,
-    booking_status: "Booking Confirmed",
+    booking_status: lead.lead_status === "Accepted / Booked" ? "Booking Confirmed" : "Tentative Contract",
     booking_date: (lead.created_at || new Date().toISOString()).split("T")[0],
-    total_amount: Number(lead.budget) || 300000,
-    advance_amount: Math.round((Number(lead.budget) || 300000) * 0.35),
-    remaining_amount: (Number(lead.budget) || 300000) - Math.round((Number(lead.budget) || 300000) * 0.35),
+    total_amount: derivedContractTotal,
+    advance_amount: 0,
+    remaining_amount: derivedContractTotal,
     advance_paid_at: null,
     final_payment_due_date: lead.event_date || null,
     notes: "Confirmed booking contract.",
@@ -157,9 +167,71 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
     created_at: lead.created_at || new Date().toISOString(),
     updated_at: lead.updated_at || new Date().toISOString(),
   } as Booking : null);
+
+  const paymentsList = booking?.payments || [];
+  const actualTotalPaid = paymentsList.reduce((acc: number, p: any) => acc + (Number(p.amount) || 0), 0);
+  const actualAdvancePaid = paymentsList
+    .filter((p: any) => p.payment_type === "Advance")
+    .reduce((acc: number, p: any) => acc + (Number(p.amount) || 0), 0);
+  const actualContractTotal = Number(booking?.total_amount) || derivedContractTotal;
+  const actualRemainingDue = Math.max(0, actualContractTotal - actualTotalPaid);
+
   const communications = lead.communications || [];
   const notes = lead.notes || [];
   const activities = lead.activities || [];
+
+  const handlePaymentRecorded = (payment: any, updatedBooking?: any) => {
+    setLead((prev) => {
+      const existingBookings = prev.bookings || [];
+      const baseContract =
+        Number(updatedBooking?.total_amount) ||
+        Number(existingBookings[0]?.total_amount) ||
+        derivedContractTotal ||
+        Number(prev.budget) ||
+        0;
+
+      const currentBooking = existingBookings[0] || booking || {
+        id: updatedBooking?.id || ("b-" + prev.id),
+        lead_id: prev.id,
+        client_id: prev.client_id,
+        owner_id: prev.owner_id,
+        booking_status: "Booking Confirmed",
+        booking_date: new Date().toISOString().split("T")[0],
+        total_amount: baseContract,
+        advance_amount: 0,
+        remaining_amount: baseContract,
+        advance_paid_at: null,
+        final_payment_due_date: prev.event_date || null,
+        notes: "Confirmed booking contract.",
+        payments: [],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      const currentPayments = currentBooking.payments || [];
+      const updatedPayments = [payment, ...currentPayments.filter((p: any) => p.id !== payment.id)];
+      const totalPaid = updatedPayments.reduce((acc: number, p: any) => acc + (Number(p.amount) || 0), 0);
+      const newRemaining = Math.max(0, baseContract - totalPaid);
+
+      const resolvedB: Booking = {
+        ...currentBooking,
+        ...(updatedBooking || {}),
+        total_amount: baseContract,
+        booking_status: "Booking Confirmed",
+        payments: updatedPayments,
+        remaining_amount: newRemaining,
+        advance_paid_at: payment.payment_type === "Advance" ? payment.payment_date : currentBooking.advance_paid_at,
+        updated_at: new Date().toISOString(),
+      };
+
+      return {
+        ...prev,
+        lead_status: "Accepted / Booked",
+        bookings: [resolvedB, ...existingBookings.slice(1)],
+      };
+    });
+    router.refresh();
+  };
 
   // Calculate days remaining until event
   const getEventDaysLeft = () => {
@@ -571,6 +643,76 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
             </CardContent>
           </Card>
 
+          {/* Multi-Function / Event Schedule (if multiple events exist) */}
+          {Array.isArray(lead.events) && lead.events.length > 0 && (
+            <Card className="shadow-xs border-indigo-200/70 dark:border-indigo-900/40">
+              <CardHeader className="pb-3 border-b bg-indigo-50/20 dark:bg-indigo-950/20">
+                <CardTitle className="text-base font-semibold flex items-center gap-2 text-foreground">
+                  <Calendar className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                  <span>Function Schedule & Multi-Day Dates</span>
+                  <Badge variant="secondary" className="text-[11px] ml-1.5">
+                    {lead.events.length} {lead.events.length === 1 ? "Function" : "Functions"}
+                  </Badge>
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  All booked ceremonies, timings, and venues scheduled for this client.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-4 space-y-2.5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {lead.events.map((ev, i) => (
+                    <div
+                      key={ev.id || i}
+                      className="p-3 rounded-xl border bg-muted/20 flex flex-col justify-between space-y-2"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <span className="font-semibold text-foreground text-sm flex items-center gap-1.5">
+                            <Sparkles className="h-3.5 w-3.5 text-indigo-500" />
+                            {ev.event_name || ev.event_type}
+                          </span>
+                          <span className="text-[11px] text-muted-foreground block">
+                            Type: {ev.event_type}
+                          </span>
+                        </div>
+                        <Badge variant="outline" className="text-[10px] uppercase font-bold">
+                          {ev.status || "Scheduled"}
+                        </Badge>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t text-muted-foreground">
+                        <div>
+                          <span className="block text-[10px] uppercase tracking-wider font-semibold">Date</span>
+                          <span className="font-medium text-foreground">
+                            {ev.event_date ? formatDate(ev.event_date) : "TBD"}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="block text-[10px] uppercase tracking-wider font-semibold">Timings</span>
+                          <span className="font-medium text-foreground flex items-center gap-1">
+                            <Clock className="h-3 w-3 text-muted-foreground" />
+                            {ev.start_time || ev.end_time ? `${ev.start_time || ""} - ${ev.end_time || ""}` : "TBD"}
+                          </span>
+                        </div>
+                        {ev.location && (
+                          <div className="col-span-2">
+                            <span className="block text-[10px] uppercase tracking-wider font-semibold">Venue</span>
+                            <span className="font-medium text-foreground">{ev.location}</span>
+                          </div>
+                        )}
+                        {ev.notes && (
+                          <div className="col-span-2 text-[11px] italic text-muted-foreground">
+                            Note: {ev.notes}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* 3. Deliverables & Production Scope Manager */}
           <DeliverablesEditor
             leadId={lead.id}
@@ -667,7 +809,11 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                     {((booking.remaining_amount || 0) > 0 || !booking.advance_paid_at) && (
                       <WhatsAppPaymentReminderDialog booking={booking} profile={profile} />
                     )}
-                    <RecordPaymentDialog booking={booking} leadId={lead.id} />
+                    <RecordPaymentDialog
+                      booking={booking}
+                      leadId={lead.id}
+                      onPaymentRecorded={handlePaymentRecorded}
+                    />
                     <Badge variant="success">{booking.booking_status}</Badge>
                   </div>
                 </div>
@@ -677,25 +823,30 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                   <div className="p-3 border rounded-xl bg-background shadow-2xs">
                     <span className="text-xs text-muted-foreground block">Total Contract</span>
                     <span className="font-bold text-base text-foreground">
-                      {formatCurrency(booking.total_amount)}
-                    </span>
-                  </div>
-                  <div className="p-3 border rounded-xl bg-emerald-50/50 dark:bg-emerald-950/30 shadow-2xs">
-                    <span className="text-xs text-emerald-700 dark:text-emerald-300 block">Advance Token</span>
-                    <span className="font-bold text-base text-emerald-800 dark:text-emerald-200">
-                      {formatCurrency(booking.advance_amount)}
+                      {formatCurrency(actualContractTotal)}
                     </span>
                     <p className="text-[10px] text-muted-foreground mt-0.5">
-                      {booking.advance_paid_at ? "Paid" : "Due"}
+                      {quotations.length > 0 ? "Quoted package" : "Client budget"}
+                    </p>
+                  </div>
+                  <div className="p-3 border rounded-xl bg-emerald-50/50 dark:bg-emerald-950/30 shadow-2xs">
+                    <span className="text-xs text-emerald-700 dark:text-emerald-300 block">Total Paid So Far</span>
+                    <span className="font-bold text-base text-emerald-800 dark:text-emerald-200">
+                      {formatCurrency(actualTotalPaid)}
+                    </span>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      {actualAdvancePaid > 0
+                        ? `Advance ₹${actualAdvancePaid.toLocaleString("en-IN")} received`
+                        : (booking.advance_paid_at ? "Advance Received" : (actualTotalPaid > 0 ? "Partial Paid" : "Advance Pending"))}
                     </p>
                   </div>
                   <div className="p-3 border rounded-xl bg-amber-50/50 dark:bg-amber-950/30 shadow-2xs">
                     <span className="text-xs text-amber-700 dark:text-amber-300 block">Remaining Due</span>
                     <span className="font-bold text-base text-amber-800 dark:text-amber-200">
-                      {formatCurrency(booking.remaining_amount)}
+                      {formatCurrency(actualRemainingDue)}
                     </span>
                     <p className="text-[10px] text-muted-foreground mt-0.5">
-                      Final settlement
+                      {actualRemainingDue === 0 ? "Fully Cleared" : "Final settlement"}
                     </p>
                   </div>
                 </div>

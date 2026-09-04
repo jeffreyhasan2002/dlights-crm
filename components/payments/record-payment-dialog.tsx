@@ -35,6 +35,7 @@ interface RecordPaymentDialogProps {
   bookings?: Booking[];
   leadId?: string;
   triggerButton?: React.ReactNode;
+  onPaymentRecorded?: (payment: any, updatedBooking?: any) => void;
 }
 
 export function RecordPaymentDialog({
@@ -42,6 +43,7 @@ export function RecordPaymentDialog({
   bookings = [],
   leadId,
   triggerButton,
+  onPaymentRecorded,
 }: RecordPaymentDialogProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -92,6 +94,9 @@ export function RecordPaymentDialog({
 
       if (res.success) {
         toast.success(`Payment of ${formatCurrency(numAmount)} recorded successfully`);
+        if (onPaymentRecorded) {
+          onPaymentRecorded(res.payment, (res as any).updatedBooking);
+        }
         setOpen(false);
         setReference("");
         setNotes("");

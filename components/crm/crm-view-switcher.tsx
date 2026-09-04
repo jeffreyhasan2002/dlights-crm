@@ -52,6 +52,9 @@ export function CRMViewSwitcher({
   const [quotations, setQuotations] = useState<Quotation[]>(serverQuotations);
   const [bookings, setBookings] = useState<Booking[]>(serverBookings);
 
+  // Track optimistic status overrides to prevent router.refresh() from reverting local state
+  const [statusOverrides, setStatusOverrides] = useState<Record<string, LeadStatus>>({});
+
   // Keep activeTab synchronized with searchParams
   useEffect(() => {
     const raw = searchParams?.get("view") || defaultView;
@@ -59,10 +62,26 @@ export function CRMViewSwitcher({
     setActiveTab(normalized);
   }, [searchParams, defaultView]);
 
-  // Keep state synchronized with server props
+  // Synchronize with serverLeads while preserving recent optimistic status overrides
   useEffect(() => {
-    setLeads(serverLeads);
-  }, [serverLeads]);
+    setLeads(() => {
+      return serverLeads.map((sl) => {
+        const override = statusOverrides[sl.id];
+        if (override) {
+          if (sl.lead_status === override) {
+            setStatusOverrides((prev) => {
+              const copy = { ...prev };
+              delete copy[sl.id];
+              return copy;
+            });
+            return sl;
+          }
+          return { ...sl, lead_status: override };
+        }
+        return sl;
+      });
+    });
+  }, [serverLeads, statusOverrides]);
 
   useEffect(() => {
     setFollowUps(serverFollowUps);
@@ -78,6 +97,7 @@ export function CRMViewSwitcher({
 
   // Instant local state mutators for zero-latency UI updates
   const handleLeadStatusChange = (leadId: string, targetStatus: LeadStatus) => {
+    setStatusOverrides((prev) => ({ ...prev, [leadId]: targetStatus }));
     setLeads((prev) =>
       prev.map((l) => (l.id === leadId ? { ...l, lead_status: targetStatus } : l))
     );
@@ -238,8 +258,21 @@ export function CRMViewSwitcher({
 
       const nextFollowUpAt = nextPendingFollowUp?.scheduled_at || lead.next_follow_up_at;
 
+      // Automatically promote to Follow-up Required after 24 hours, on subsequent calendar days, or if follow-up is overdue
+      let resolvedStatus = lead.lead_status;
+      const isEarly = resolvedStatus === "New Enquiry" || resolvedStatus === "Contacted";
+      const createdMs = lead.created_at ? new Date(lead.created_at).getTime() : Date.now();
+      const isDifferentDay = new Date(createdMs).toDateString() !== new Date().toDateString();
+      const is24hOld = Date.now() - createdMs >= 24 * 60 * 60 * 1000;
+      const isFollowUpDue = nextFollowUpAt ? new Date(nextFollowUpAt).getTime() <= Date.now() : false;
+
+      if (isEarly && (isDifferentDay || is24hOld || isFollowUpDue)) {
+        resolvedStatus = "Follow-up Required";
+      }
+
       return {
         ...lead,
+        lead_status: resolvedStatus,
         quotations: leadQuotations,
         follow_ups: leadFollowUps,
         bookings: leadBookings,

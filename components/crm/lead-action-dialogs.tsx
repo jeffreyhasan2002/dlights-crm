@@ -78,7 +78,7 @@ export function LeadActionDialogs({ lead }: LeadActionDialogsProps) {
 
   const [noteText, setNoteText] = useState("");
 
-  const [quoteAmount, setQuoteAmount] = useState<number>(lead.budget || 300000);
+  const [quoteAmount, setQuoteAmount] = useState<number>(Number(lead.budget) || 0);
   const [quoteValidUntil, setQuoteValidUntil] = useState("");
   const [quoteNotes, setQuoteNotes] = useState("");
 

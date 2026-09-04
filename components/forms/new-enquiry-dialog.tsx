@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Plus, Loader2, Sparkles, Clock, Calendar, MapPin, User, FileText } from "lucide-react";
+import { Plus, Loader2, Sparkles, Clock, Calendar, MapPin, User, FileText, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -38,20 +38,8 @@ const enquiryFormSchema = z
     phone: z.string().optional(),
     whatsapp: z.string().optional(),
     email: z.string().email("Invalid email address").optional().or(z.literal("")),
-    eventType: z.enum([
-      "Wedding",
-      "Engagement",
-      "Sangeet",
-      "Reception",
-      "Muhurtham",
-      "Pre-Wedding",
-      "Post-Wedding",
-      "Birthday",
-      "Baby Shoot",
-      "Portrait",
-      "Corporate",
-      "Other",
-    ]),
+    eventType: z.string().min(1, "Event type is required"),
+    customEventType: z.string().optional(),
     eventDate: z.string().optional(),
     eventStartTime: z.string().optional(),
     eventEndTime: z.string().optional(),
@@ -72,6 +60,18 @@ const enquiryFormSchema = z
     requirements: z.array(z.string()).default([]),
     otherRequirement: z.string().optional(),
   })
+  .refine(
+    (data) => {
+      if (data.eventType === "Other" && (!data.customEventType || !data.customEventType.trim())) {
+        return false;
+      }
+      return true;
+    },
+    {
+      message: 'Please type the custom event name when "Other" is selected.',
+      path: ["customEventType"],
+    }
+  )
   .refine(
     (data) => {
       if (data.requirements.includes("Other") && (!data.otherRequirement || !data.otherRequirement.trim())) {
@@ -100,6 +100,16 @@ export function NewEnquiryDialog({
 }: NewEnquiryDialogProps) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [additionalEvents, setAdditionalEvents] = useState<Array<{
+    id: string;
+    eventType: string;
+    customEventType?: string;
+    eventDate: string;
+    eventStartTime?: string;
+    eventEndTime?: string;
+    location?: string;
+    notes?: string;
+  }>>([]);
   const router = useRouter();
 
   const isControlled = controlledOpen !== undefined;
@@ -121,6 +131,7 @@ export function NewEnquiryDialog({
       whatsapp: "",
       email: "",
       eventType: "Wedding",
+      customEventType: "",
       eventDate: "",
       eventStartTime: "",
       eventEndTime: "",
@@ -133,6 +144,32 @@ export function NewEnquiryDialog({
     },
   });
 
+  const handleAddEvent = () => {
+    setAdditionalEvents((prev) => [
+      ...prev,
+      {
+        id: "ev-" + Date.now() + Math.random().toString(36).substring(2, 5),
+        eventType: "Reception",
+        customEventType: "",
+        eventDate: "",
+        eventStartTime: "",
+        eventEndTime: "",
+        location: "",
+        notes: "",
+      },
+    ]);
+  };
+
+  const handleRemoveEvent = (id: string) => {
+    setAdditionalEvents((prev) => prev.filter((ev) => ev.id !== id));
+  };
+
+  const handleUpdateEvent = (id: string, field: string, value: string) => {
+    setAdditionalEvents((prev) =>
+      prev.map((ev) => (ev.id === id ? { ...ev, [field]: value } : ev))
+    );
+  };
+
   const selectedEventType = watch("eventType");
   const selectedSource = watch("source");
   const selectedRequirements = watch("requirements") || [];
@@ -141,12 +178,53 @@ export function NewEnquiryDialog({
   const onSubmit = async (data: EnquiryFormValues) => {
     try {
       setIsSubmitting(true);
+      const primaryEventType = (data.eventType === "Other" && data.customEventType?.trim())
+        ? data.customEventType.trim()
+        : data.eventType;
+
+      const allEventsPayload: Array<{
+        eventType: string;
+        eventDate: string;
+        eventStartTime?: string;
+        eventEndTime?: string;
+        location?: string;
+        notes?: string;
+      }> = [];
+
+      if (data.eventDate) {
+        allEventsPayload.push({
+          eventType: primaryEventType,
+          eventDate: data.eventDate,
+          eventStartTime: data.eventStartTime || undefined,
+          eventEndTime: data.eventEndTime || undefined,
+          location: data.location || undefined,
+          notes: "Primary Function",
+        });
+      }
+
+      for (const aEv of additionalEvents) {
+        if (aEv.eventDate) {
+          const evType = (aEv.eventType === "Other" && aEv.customEventType?.trim())
+            ? aEv.customEventType.trim()
+            : aEv.eventType;
+          allEventsPayload.push({
+            eventType: evType,
+            eventDate: aEv.eventDate,
+            eventStartTime: aEv.eventStartTime || undefined,
+            eventEndTime: aEv.eventEndTime || undefined,
+            location: aEv.location || data.location || undefined,
+            notes: aEv.notes || undefined,
+          });
+        }
+      }
+
       const res = await createLeadServerAction({
         clientName: data.clientName,
         phone: data.phone || undefined,
         whatsapp: data.whatsapp || data.phone || undefined,
         email: data.email || undefined,
-        eventType: data.eventType,
+        eventType: primaryEventType,
+        customEventType: data.customEventType || undefined,
         eventDate: data.eventDate || undefined,
         eventStartTime: data.eventStartTime || undefined,
         eventEndTime: data.eventEndTime || undefined,
@@ -157,6 +235,7 @@ export function NewEnquiryDialog({
         requirements: data.requirements,
         otherRequirement: data.otherRequirement || undefined,
         profitPercentage: 30,
+        events: allEventsPayload,
       });
 
       if (res.success && res.leadId) {
@@ -164,6 +243,7 @@ export function NewEnquiryDialog({
           description: `${data.clientName} added to the CRM pipeline.`,
         });
         reset();
+        setAdditionalEvents([]);
         setOpen(false);
         router.push(`/crm/${res.leadId}`);
       } else {
@@ -293,6 +373,23 @@ export function NewEnquiryDialog({
                 </Select>
               </div>
 
+              {selectedEventType === "Other" && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="customEventType">
+                    Specify Custom Event <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="customEventType"
+                    placeholder="e.g. Haldi / Mehendi Ceremony"
+                    {...register("customEventType")}
+                    className={errors.customEventType ? "border-destructive" : ""}
+                  />
+                  {errors.customEventType && (
+                    <p className="text-xs text-destructive">{errors.customEventType.message}</p>
+                  )}
+                </div>
+              )}
+
               <div className="space-y-1.5">
                 <Label htmlFor="eventDate">Event Date</Label>
                 <Input
@@ -368,6 +465,145 @@ export function NewEnquiryDialog({
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            {/* Multi-Function / Additional Event Dates for Single Client */}
+            <div className="pt-3 border-t space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <Calendar className="h-3.5 w-3.5 text-primary" />
+                    <span>Multiple Functions / Dates for this Client</span>
+                  </span>
+                  <p className="text-[11px] text-muted-foreground">
+                    Add separate dates & timings for multi-day weddings (e.g., Sangeet, Muhurtham, Reception, Haldi).
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddEvent}
+                  className="h-7 text-xs gap-1 border-dashed"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Add Function Date</span>
+                </Button>
+              </div>
+
+              {additionalEvents.length > 0 && (
+                <div className="space-y-2.5">
+                  {additionalEvents.map((aEv, idx) => (
+                    <div
+                      key={aEv.id}
+                      className="p-3 rounded-lg border bg-background/80 relative space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-foreground">
+                          Function #{idx + 2}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRemoveEvent(aEv.id)}
+                          className="h-6 w-6 p-0 text-destructive hover:bg-destructive/10"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                        <div>
+                          <Label className="text-[10px] text-muted-foreground">Function Type</Label>
+                          <Select
+                            value={aEv.eventType}
+                            onValueChange={(val) => handleUpdateEvent(aEv.id, "eventType", val)}
+                          >
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue placeholder="Event Type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Wedding">Wedding</SelectItem>
+                              <SelectItem value="Engagement">Engagement</SelectItem>
+                              <SelectItem value="Sangeet">Sangeet</SelectItem>
+                              <SelectItem value="Reception">Reception</SelectItem>
+                              <SelectItem value="Muhurtham">Muhurtham</SelectItem>
+                              <SelectItem value="Haldi">Haldi</SelectItem>
+                              <SelectItem value="Mehendi">Mehendi</SelectItem>
+                              <SelectItem value="Pre-Wedding">Pre-Wedding</SelectItem>
+                              <SelectItem value="Post-Wedding">Post-Wedding</SelectItem>
+                              <SelectItem value="Other">Other</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {aEv.eventType === "Other" && (
+                          <div>
+                            <Label className="text-[10px] text-muted-foreground">Custom Type Name</Label>
+                            <Input
+                              placeholder="e.g. Cocktail Night"
+                              value={aEv.customEventType}
+                              onChange={(e) => handleUpdateEvent(aEv.id, "customEventType", e.target.value)}
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                        )}
+
+                        <div>
+                          <Label className="text-[10px] text-muted-foreground">Date</Label>
+                          <Input
+                            type="date"
+                            value={aEv.eventDate}
+                            onChange={(e) => handleUpdateEvent(aEv.id, "eventDate", e.target.value)}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+
+                        <div>
+                          <Label className="text-[10px] text-muted-foreground">Venue / Location</Label>
+                          <Input
+                            placeholder="Venue (if different)"
+                            value={aEv.location}
+                            onChange={(e) => handleUpdateEvent(aEv.id, "location", e.target.value)}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+
+                        <div>
+                          <Label className="text-[10px] text-muted-foreground">Start Time</Label>
+                          <Input
+                            type="time"
+                            value={aEv.eventStartTime}
+                            onChange={(e) => handleUpdateEvent(aEv.id, "eventStartTime", e.target.value)}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+
+                        <div>
+                          <Label className="text-[10px] text-muted-foreground">End Time</Label>
+                          <Input
+                            type="time"
+                            value={aEv.eventEndTime}
+                            onChange={(e) => handleUpdateEvent(aEv.id, "eventEndTime", e.target.value)}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+
+                        <div className="sm:col-span-3">
+                          <Label className="text-[10px] text-muted-foreground">Notes / Specifics</Label>
+                          <Input
+                            placeholder="e.g. Traditional attire, Drone required, etc."
+                            value={aEv.notes}
+                            onChange={(e) => handleUpdateEvent(aEv.id, "notes", e.target.value)}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 

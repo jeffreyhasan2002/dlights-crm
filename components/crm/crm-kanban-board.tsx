@@ -71,10 +71,27 @@ export function CRMKanbanBoard({ initialLeads, onLeadStatusChange }: CRMKanbanBo
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 200);
   const [draggingLeadId, setDraggingLeadId] = useState<string | null>(null);
+  const [statusOverrides, setStatusOverrides] = useState<Record<string, LeadStatus>>({});
 
   React.useEffect(() => {
-    setLeads(initialLeads);
-  }, [initialLeads]);
+    setLeads(
+      initialLeads.map((il) => {
+        const override = statusOverrides[il.id];
+        if (override) {
+          if (il.lead_status === override) {
+            setStatusOverrides((prev) => {
+              const copy = { ...prev };
+              delete copy[il.id];
+              return copy;
+            });
+            return il;
+          }
+          return { ...il, lead_status: override };
+        }
+        return il;
+      })
+    );
+  }, [initialLeads, statusOverrides]);
 
   const handleConfirmDelete = async () => {
     if (!leadToDelete) return;
@@ -130,6 +147,9 @@ export function CRMKanbanBoard({ initialLeads, onLeadStatusChange }: CRMKanbanBo
     const lead = leads.find((l) => l.id === leadId);
     if (!lead || lead.lead_status === targetStatus) return;
 
+    // Set optimistic status override
+    setStatusOverrides((prev) => ({ ...prev, [leadId]: targetStatus }));
+
     // Optimistic UI update
     setLeads((prev) =>
       prev.map((l) => (l.id === leadId ? { ...l, lead_status: targetStatus } : l))
@@ -145,10 +165,20 @@ export function CRMKanbanBoard({ initialLeads, onLeadStatusChange }: CRMKanbanBo
         router.refresh();
       } else {
         toast.error("Failed to update lead status");
+        setStatusOverrides((prev) => {
+          const copy = { ...prev };
+          delete copy[leadId];
+          return copy;
+        });
         setLeads(initialLeads);
       }
     } catch {
       toast.error("An error occurred while moving lead");
+      setStatusOverrides((prev) => {
+        const copy = { ...prev };
+        delete copy[leadId];
+        return copy;
+      });
       setLeads(initialLeads);
     }
   };
@@ -157,6 +187,7 @@ export function CRMKanbanBoard({ initialLeads, onLeadStatusChange }: CRMKanbanBo
     const lead = leads.find((l) => l.id === leadId);
     if (!lead || lead.lead_status === targetStatus) return;
 
+    setStatusOverrides((prev) => ({ ...prev, [leadId]: targetStatus }));
     setLeads((prev) =>
       prev.map((l) => (l.id === leadId ? { ...l, lead_status: targetStatus } : l))
     );
@@ -170,9 +201,19 @@ export function CRMKanbanBoard({ initialLeads, onLeadStatusChange }: CRMKanbanBo
         toast.success(`Status updated to "${targetStatus}"`);
         router.refresh();
       } else {
+        setStatusOverrides((prev) => {
+          const copy = { ...prev };
+          delete copy[leadId];
+          return copy;
+        });
         setLeads(initialLeads);
       }
     } catch {
+      setStatusOverrides((prev) => {
+        const copy = { ...prev };
+        delete copy[leadId];
+        return copy;
+      });
       setLeads(initialLeads);
     }
   };

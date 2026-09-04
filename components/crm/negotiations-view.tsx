@@ -68,21 +68,48 @@ export function NegotiationsView({ leads }: NegotiationsViewProps) {
 
                   <div className="flex items-center justify-between text-xs text-muted-foreground pt-1 border-t">
                     <span>Budget: <strong className="text-foreground">{formatCurrency(lead.budget)}</strong></span>
-                    {quotation && (
+                    {quotation ? (
                       <span>Quote: <strong className="text-foreground">{formatCurrency(quotation.amount)}</strong></span>
+                    ) : (
+                      <span>Event: <strong className="text-foreground">{lead.event_date ? formatDate(lead.event_date) : "TBD"}</strong></span>
                     )}
                   </div>
+
+                  {lead.event_date && quotation && (
+                    <div className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                      <Calendar className="h-3 w-3 text-muted-foreground" />
+                      <span>Shoot Date: <strong className="text-foreground">{formatDate(lead.event_date)}</strong></span>
+                    </div>
+                  )}
 
                   <div className="flex items-center justify-between pt-1">
                     <span className="text-[11px] text-muted-foreground">
                       Updated {formatDate(lead.updated_at)}
                     </span>
-                    <Button size="sm" variant="default" className="h-7 text-xs" asChild>
-                      <Link href={`/crm/${lead.id}`}>
-                        <span>Manage Deal</span>
-                        <ArrowUpRight className="h-3 w-3 ml-1" />
-                      </Link>
-                    </Button>
+                    <div className="flex items-center gap-1.5">
+                      {lead.client?.whatsapp && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-xs border-emerald-500/30 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                          asChild
+                        >
+                          <a
+                            href={`https://wa.me/${lead.client.whatsapp.replace(/[^0-9]/g, "")}?text=Hi%20${encodeURIComponent(lead.client.name || "Client")},%20following%20up%20on%20our%20discussion%20regarding%20your%20${encodeURIComponent(lead.event_type || "event")}%20photography.`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            WhatsApp
+                          </a>
+                        </Button>
+                      )}
+                      <Button size="sm" variant="default" className="h-7 text-xs" asChild>
+                        <Link href={`/crm/${lead.id}`}>
+                          <span>Manage Deal</span>
+                          <ArrowUpRight className="h-3 w-3 ml-1" />
+                        </Link>
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
