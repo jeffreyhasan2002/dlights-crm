@@ -79,6 +79,20 @@ async function isSupabaseLive(): Promise<boolean> {
   }
 }
 
+export function isValidUuid(id?: string | null): boolean {
+  if (!id || typeof id !== "string") return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id.trim());
+}
+
+export function extractLeadIdFromQuotation(quotationId: string, leadId?: string): string | undefined {
+  if (leadId && isValidUuid(leadId)) return leadId.trim();
+  if (!quotationId || typeof quotationId !== "string") return undefined;
+  const trimmed = quotationId.trim();
+  const stripped = trimmed.replace(/^(?:q-lead-|q-)/, "");
+  if (isValidUuid(stripped)) return stripped;
+  return undefined;
+}
+
 async function getAuthenticatedOwnerId(): Promise<string> {
   try {
     const supabase = await createServerSupabase();
@@ -855,13 +869,68 @@ export const getQuotations = cache(async (statusFilter?: string): Promise<Quotat
   }
 
   const leadMap = new Map(leads.map((l) => [l.id, l]));
+  const quoteMap = new Map<string, Quotation>();
 
-  let list = rawList.map((q) => ({
-    ...q,
-    amount: q.amount ?? q.total_amount ?? 0,
-    total_amount: q.total_amount ?? q.amount ?? 0,
-    lead: leadMap.get(q.lead_id),
-  }));
+  // 1. Add explicitly stored quotations
+  for (const q of rawList) {
+    quoteMap.set(q.id, {
+      ...q,
+      amount: q.amount ?? q.total_amount ?? 0,
+      total_amount: q.total_amount ?? q.amount ?? 0,
+      lead: leadMap.get(q.lead_id),
+    });
+  }
+
+  // 2. Add quotations from leads' quotation arrays
+  for (const l of leads) {
+    for (const q of l.quotations || []) {
+      if (!quoteMap.has(q.id)) {
+        quoteMap.set(q.id, {
+          ...q,
+          amount: q.amount ?? q.total_amount ?? (Number(l.budget) || 0),
+          total_amount: q.total_amount ?? q.amount ?? (Number(l.budget) || 0),
+          lead: l,
+        });
+      }
+    }
+  }
+
+  // 3. For any lead that is in "Quotation Sent", "Negotiation", or "Accepted / Booked" that has no quotation row yet, ensure a quotation exists
+  const existingQuoteLeadIds = new Set(
+    Array.from(quoteMap.values()).map((q) => q.lead_id).filter(Boolean)
+  );
+
+  for (const l of leads) {
+    const s = (l.lead_status || "").toLowerCase();
+    const isQuotedOrBeyond =
+      s === "quotation sent" ||
+      s.includes("quotation") ||
+      s === "negotiation" ||
+      s === "accepted / booked";
+
+    if (isQuotedOrBeyond && !existingQuoteLeadIds.has(l.id)) {
+      const synthStatus = s === "negotiation" ? "Negotiating" : s === "accepted / booked" ? "Accepted" : "Sent";
+      const qNum = `Q-${new Date(l.created_at || Date.now()).getFullYear()}-${l.id.slice(0, 4).toUpperCase()}`;
+      const synthQId = "q-lead-" + l.id;
+      quoteMap.set(synthQId, {
+        id: synthQId,
+        lead_id: l.id,
+        owner_id: l.owner_id,
+        quotation_number: qNum,
+        amount: Number(l.budget) || 0,
+        total_amount: Number(l.budget) || 0,
+        valid_until: l.event_date || new Date(Date.now() + 14 * 86400000).toISOString().split("T")[0],
+        status: synthStatus,
+        sent_at: l.updated_at || l.created_at || new Date().toISOString(),
+        notes: `Quotation for ${l.event_type || "photography coverage"}.`,
+        created_at: l.created_at || new Date().toISOString(),
+        updated_at: l.updated_at || new Date().toISOString(),
+        lead: l,
+      });
+    }
+  }
+
+  let list = Array.from(quoteMap.values());
 
   if (statusFilter && statusFilter !== "All") {
     list = list.filter((q) => q.status.toLowerCase() === statusFilter.toLowerCase());
@@ -1955,6 +2024,54 @@ export async function updateLeadStatusAction(leadId: string, status: LeadStatus)
           .is("completed_at", null);
       }
 
+      // If moved to Accepted / Booked, sync quotations to Accepted and ensure confirmed booking in Supabase
+      if (status === "Accepted / Booked") {
+        await supabase
+          .from("quotations")
+          .update({
+            status: "Accepted",
+            accepted_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("lead_id", leadId);
+
+        const { data: dbLead } = await supabase.from("leads").select("*").eq("id", leadId).maybeSingle();
+        if (dbLead) {
+          const { data: existingB } = await supabase.from("bookings").select("id").eq("lead_id", leadId).maybeSingle();
+          const qAmount = Number(dbLead.budget) || 0;
+          const advanceAmount = Math.round(qAmount * 0.35);
+          const remainingAmount = qAmount - advanceAmount;
+
+          if (existingB) {
+            await supabase
+              .from("bookings")
+              .update({
+                booking_status: "Booking Confirmed",
+                confirmed_at: new Date().toISOString(),
+                total_amount: qAmount,
+                advance_amount: advanceAmount,
+                remaining_amount: remainingAmount,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", existingB.id);
+          } else {
+            await supabase.from("bookings").insert({
+              lead_id: dbLead.id,
+              client_id: dbLead.client_id,
+              owner_id: dbLead.owner_id || ownerId,
+              booking_date: new Date().toISOString().split("T")[0],
+              booking_status: "Booking Confirmed",
+              confirmed_at: new Date().toISOString(),
+              total_amount: qAmount,
+              advance_amount: advanceAmount,
+              remaining_amount: remainingAmount,
+              advance_paid_at: null,
+              final_payment_due_date: dbLead.event_date || null,
+            });
+          }
+        }
+      }
+
       // If moved to Negotiation, sync any sent quotations to Negotiating
       if (status === "Negotiation") {
         await supabase
@@ -2014,84 +2131,154 @@ export async function updateLeadStatusAction(leadId: string, status: LeadStatus)
   return { success: true };
 }
 
-export async function acceptQuotationAction(quotationId: string) {
-  const quotation = memoryQuotations.find((q) => q.id === quotationId);
+export async function acceptQuotationAction(quotationId: string, leadId?: string) {
+  const targetLeadId = extractLeadIdFromQuotation(quotationId, leadId);
+
+  let quotation = memoryQuotations.find((q) => q.id === quotationId);
+  if (!quotation && targetLeadId) {
+    quotation = memoryQuotations.find((q) => q.lead_id === targetLeadId);
+  }
+
   if (quotation) {
     quotation.status = "Accepted";
     quotation.updated_at = new Date().toISOString();
+  }
 
-    const lead = memoryLeads.find((l) => l.id === quotation.lead_id);
-    if (lead) {
-      lead.lead_status = "Accepted / Booked";
-      lead.updated_at = new Date().toISOString();
+  const effectiveMemLeadId = quotation?.lead_id || targetLeadId;
+  const lead = memoryLeads.find((l) => l.id === effectiveMemLeadId);
+  if (lead) {
+    lead.lead_status = "Accepted / Booked";
+    lead.updated_at = new Date().toISOString();
 
-      const bId = "b-" + Date.now();
-      const qTotal = quotation.total_amount ?? quotation.amount ?? 0;
-      const advanceAmount = Math.round(qTotal * 0.35);
-      const remainingAmount = qTotal - advanceAmount;
+    const bId = "b-" + lead.id;
+    const qTotal = quotation ? (quotation.total_amount ?? quotation.amount ?? 0) : (Number(lead.budget) || 0);
+    const advanceAmount = Math.round(qTotal * 0.35);
+    const remainingAmount = qTotal - advanceAmount;
 
-      const newBooking: Booking = {
-        id: bId,
-        lead_id: lead.id,
-        client_id: lead.client_id,
-        owner_id: memoryProfile.id,
-        booking_date: new Date().toISOString().split("T")[0],
-        total_amount: qTotal,
-        advance_amount: advanceAmount,
-        remaining_amount: remainingAmount,
-        advance_paid_at: null,
-        final_payment_due_date: lead.event_date || null,
-        notes: "35% advance token required to lock shoot dates.",
-        booking_status: "Booking Confirmed",
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
+    const existingBIdx = memoryBookings.findIndex((b) => b.lead_id === lead.id);
+    const newBooking: Booking = {
+      id: existingBIdx >= 0 ? memoryBookings[existingBIdx].id : bId,
+      lead_id: lead.id,
+      client_id: lead.client_id,
+      owner_id: memoryProfile.id,
+      booking_date: new Date().toISOString().split("T")[0],
+      total_amount: qTotal,
+      advance_amount: advanceAmount,
+      remaining_amount: remainingAmount,
+      advance_paid_at: null,
+      final_payment_due_date: lead.event_date || null,
+      notes: "35% advance token required to lock shoot dates.",
+      booking_status: "Booking Confirmed",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    if (existingBIdx >= 0) {
+      memoryBookings[existingBIdx] = newBooking;
+    } else {
       memoryBookings.unshift(newBooking);
-
-      const newActivity: Activity = {
-        id: "a-" + Date.now(),
-        lead_id: lead.id,
-        owner_id: memoryProfile.id,
-        activity_type: "QUOTATION_ACCEPTED",
-        title: "Quotation Accepted",
-        description: `Quotation ${quotation.quotation_number} accepted. Project confirmed with booking value of ₹${qTotal.toLocaleString("en-IN")}.`,
-        created_at: new Date().toISOString(),
-      };
-      memoryActivities.unshift(newActivity);
     }
+
+    const newActivity: Activity = {
+      id: "a-" + Date.now(),
+      lead_id: lead.id,
+      owner_id: memoryProfile.id,
+      activity_type: "QUOTATION_ACCEPTED",
+      title: "Quotation Accepted",
+      description: `Quotation ${quotation?.quotation_number || ""} accepted. Project confirmed with booking value of ₹${qTotal.toLocaleString("en-IN")}.`,
+      created_at: new Date().toISOString(),
+    };
+    memoryActivities.unshift(newActivity);
   }
 
   const live = await isSupabaseLive();
   if (live) {
     try {
       const supabase = await createServerSupabase();
-      const { data: dbQ } = await supabase
-        .from("quotations")
-        .update({
-          status: "Accepted",
-          accepted_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", quotationId)
-        .select()
-        .single();
+      const ownerId = await getAuthenticatedOwnerId();
+      let dbQ: any = null;
 
-      if (dbQ) {
-        const { data: dbLead } = await supabase.from("leads").select("*").eq("id", dbQ.lead_id).single();
+      // Only attempt direct quotation lookup by id if quotationId is a valid UUID
+      if (isValidUuid(quotationId)) {
+        const { data: updatedQ } = await supabase
+          .from("quotations")
+          .update({
+            status: "Accepted",
+            accepted_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", quotationId)
+          .select()
+          .maybeSingle();
+
+        if (updatedQ) {
+          dbQ = updatedQ;
+        }
+      }
+
+      const effectiveLeadId = dbQ?.lead_id || targetLeadId;
+
+      if (effectiveLeadId && isValidUuid(effectiveLeadId)) {
+        const { data: dbLead } = await supabase.from("leads").select("*").eq("id", effectiveLeadId).maybeSingle();
+
         if (dbLead) {
-          const qAmount = Number(dbQ.amount) || 0;
+          await supabase
+            .from("quotations")
+            .update({
+              status: "Accepted",
+              accepted_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })
+            .eq("lead_id", effectiveLeadId);
+
+          const { data: existingQuotes } = await supabase
+            .from("quotations")
+            .select("*")
+            .eq("lead_id", effectiveLeadId)
+            .limit(1);
+
+          if (!existingQuotes || existingQuotes.length === 0) {
+            const qNum = "Q-" + new Date().getFullYear() + "-" + effectiveLeadId.slice(0, 4).toUpperCase();
+            const qAmount = Number(dbLead.budget) || 0;
+            const { data: insertedQ, error: insQErr } = await supabase
+              .from("quotations")
+              .insert({
+                lead_id: dbLead.id,
+                owner_id: dbLead.owner_id || ownerId,
+                quotation_number: qNum,
+                status: "Accepted",
+                amount: qAmount,
+                accepted_at: new Date().toISOString(),
+                sent_at: new Date().toISOString(),
+              })
+              .select()
+              .maybeSingle();
+
+            if (insQErr) {
+              console.error("Error inserting quotation in Supabase:", insQErr);
+            }
+            dbQ = insertedQ;
+          } else {
+            dbQ = existingQuotes[0];
+          }
+
+          const qAmount = Number(dbQ?.amount) || Number(dbLead.budget) || 0;
           const advanceAmount = Math.round(qAmount * 0.35);
           const remainingAmount = qAmount - advanceAmount;
 
-          await supabase
+          const { error: leadUpdateErr } = await supabase
             .from("leads")
             .update({
               lead_status: "Accepted / Booked",
-              budget: qAmount,
+              budget: qAmount > 0 ? qAmount : dbLead.budget,
               next_follow_up_at: null,
+              next_action: "Collect advance token & send contract",
               updated_at: new Date().toISOString(),
             })
-            .eq("id", dbQ.lead_id);
+            .eq("id", effectiveLeadId);
+
+          if (leadUpdateErr) {
+            console.error("Error updating lead status in Supabase:", leadUpdateErr);
+          }
 
           await supabase
             .from("follow_ups")
@@ -2100,13 +2287,13 @@ export async function acceptQuotationAction(quotationId: string) {
               client_response: "Quotation Accepted",
               updated_at: new Date().toISOString(),
             })
-            .eq("lead_id", dbQ.lead_id)
+            .eq("lead_id", effectiveLeadId)
             .is("completed_at", null);
 
           const { data: existingBooking } = await supabase
             .from("bookings")
             .select("id")
-            .eq("lead_id", dbLead.id)
+            .eq("lead_id", effectiveLeadId)
             .maybeSingle();
 
           if (existingBooking) {
@@ -2117,31 +2304,37 @@ export async function acceptQuotationAction(quotationId: string) {
                 advance_amount: advanceAmount,
                 remaining_amount: remainingAmount,
                 booking_status: "Booking Confirmed",
+                confirmed_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
               })
               .eq("id", existingBooking.id);
           } else {
-            await supabase.from("bookings").insert({
+            const { error: bookInsertErr } = await supabase.from("bookings").insert({
               lead_id: dbLead.id,
               client_id: dbLead.client_id,
-              owner_id: dbLead.owner_id,
+              owner_id: dbLead.owner_id || ownerId,
               booking_date: new Date().toISOString().split("T")[0],
               booking_status: "Booking Confirmed",
+              confirmed_at: new Date().toISOString(),
               total_amount: qAmount,
               advance_amount: advanceAmount,
               remaining_amount: remainingAmount,
               advance_paid_at: null,
               final_payment_due_date: dbLead.event_date || null,
             });
+
+            if (bookInsertErr) {
+              console.error("Error inserting booking in Supabase:", bookInsertErr);
+            }
           }
 
-          await supabase.from("activities").insert({
-            lead_id: dbLead.id,
-            client_id: dbLead.client_id,
-            owner_id: dbLead.owner_id,
-            activity_type: "QUOTATION_ACCEPTED",
+          await recordSupabaseActivity(supabase, {
+            leadId: dbLead.id,
+            clientId: dbLead.client_id,
+            ownerId: dbLead.owner_id || ownerId,
+            activityType: "QUOTATION_ACCEPTED",
             title: "Quotation Accepted & Booking Confirmed",
-            description: `Quotation ${dbQ.quotation_number} accepted. Project confirmed with booking value of ₹${qAmount.toLocaleString("en-IN")}.`,
+            description: `Quotation ${dbQ?.quotation_number || ""} accepted. Project confirmed with booking value of ₹${qAmount.toLocaleString("en-IN")}.`,
             metadata: { amount: qAmount },
           });
         }
@@ -2154,57 +2347,118 @@ export async function acceptQuotationAction(quotationId: string) {
   return { success: true };
 }
 
-export async function sendQuotationAction(quotationId: string) {
-  const quotation = memoryQuotations.find((q) => q.id === quotationId);
+export async function sendQuotationAction(quotationId: string, leadId?: string) {
+  const targetLeadId = extractLeadIdFromQuotation(quotationId, leadId);
+
+  let quotation = memoryQuotations.find((q) => q.id === quotationId);
+  if (!quotation && targetLeadId) {
+    quotation = memoryQuotations.find((q) => q.lead_id === targetLeadId);
+  }
+
+  const now = new Date().toISOString();
+
   if (quotation) {
     quotation.status = "Sent";
-    quotation.sent_at = new Date().toISOString();
-    quotation.updated_at = new Date().toISOString();
-    const lead = memoryLeads.find((l) => l.id === quotation.lead_id);
-    if (lead) {
-      lead.lead_status = "Quotation Sent";
-      if (!lead.next_action || lead.next_action.includes("Initial contact via WhatsApp/Call")) {
-        lead.next_action = "Follow up on proposal & quotation";
-      }
-      lead.updated_at = new Date().toISOString();
+    quotation.sent_at = now;
+    quotation.updated_at = now;
+  }
+
+  const effectiveLead = memoryLeads.find((l) => l.id === (quotation?.lead_id || targetLeadId));
+  if (effectiveLead) {
+    effectiveLead.lead_status = "Quotation Sent";
+    if (!effectiveLead.next_action || effectiveLead.next_action.includes("Initial contact via WhatsApp/Call")) {
+      effectiveLead.next_action = "Follow up on proposal & quotation";
     }
+    effectiveLead.updated_at = now;
   }
 
   const live = await isSupabaseLive();
   if (live) {
     try {
       const supabase = await createServerSupabase();
-      const { data: dbQ } = await supabase
-        .from("quotations")
-        .update({
-          status: "Sent",
-          sent_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", quotationId)
-        .select()
-        .single();
+      let dbQ: any = null;
 
-      if (dbQ) {
+      if (isValidUuid(quotationId)) {
+        const { data: updatedQ } = await supabase
+          .from("quotations")
+          .update({
+            status: "Sent",
+            sent_at: now,
+            updated_at: now,
+          })
+          .eq("id", quotationId)
+          .select()
+          .maybeSingle();
+
+        dbQ = updatedQ;
+      }
+
+      const effectiveLeadId = dbQ?.lead_id || targetLeadId;
+
+      if (!dbQ && effectiveLeadId && isValidUuid(effectiveLeadId)) {
+        const { data: existingQ } = await supabase
+          .from("quotations")
+          .select("*")
+          .eq("lead_id", effectiveLeadId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (existingQ) {
+          const { data: updatedExisting } = await supabase
+            .from("quotations")
+            .update({
+              status: "Sent",
+              sent_at: now,
+              updated_at: now,
+            })
+            .eq("id", existingQ.id)
+            .select()
+            .maybeSingle();
+          dbQ = updatedExisting || existingQ;
+        } else {
+          const { data: fetchedLead } = await supabase.from("leads").select("*").eq("id", effectiveLeadId).maybeSingle();
+          if (fetchedLead) {
+            const qNum = "Q-" + new Date().getFullYear() + "-" + effectiveLeadId.slice(0, 4).toUpperCase();
+            const { data: insertedQ } = await supabase
+              .from("quotations")
+              .insert({
+                lead_id: fetchedLead.id,
+                owner_id: fetchedLead.owner_id,
+                quotation_number: qNum,
+                status: "Sent",
+                amount: Number(fetchedLead.budget) || 0,
+                sent_at: now,
+              })
+              .select()
+              .maybeSingle();
+            dbQ = insertedQ;
+          }
+        }
+      }
+
+      if (effectiveLeadId && isValidUuid(effectiveLeadId)) {
         await supabase
           .from("leads")
           .update({
             lead_status: "Quotation Sent",
             next_action: "Follow up on proposal & quotation",
-            updated_at: new Date().toISOString(),
+            updated_at: now,
           })
-          .eq("id", dbQ.lead_id);
+          .eq("id", effectiveLeadId);
 
         const ownerId = await getAuthenticatedOwnerId();
         await recordSupabaseActivity(supabase, {
-          leadId: dbQ.lead_id,
+          leadId: effectiveLeadId,
           ownerId,
           activityType: "QUOTATION_SENT",
           title: "Quotation Sent",
-          description: `Quotation ${dbQ.quotation_number} sent to client.`,
+          description: `Quotation ${dbQ?.quotation_number || ""} sent to client.`,
         });
       }
-    } catch {}
+    } catch (err) {
+      console.error("Error sending quotation in Supabase:", err);
+    }
   }
 
   return { success: true };
@@ -2213,106 +2467,235 @@ export async function sendQuotationAction(quotationId: string) {
 export async function rejectQuotationAction(
   quotationId: string,
   reason?: string,
-  otherReason?: string
+  otherReason?: string,
+  leadId?: string
 ) {
-  const quotation = memoryQuotations.find((q) => q.id === quotationId);
+  const targetLeadId = extractLeadIdFromQuotation(quotationId, leadId);
+
+  let quotation = memoryQuotations.find((q) => q.id === quotationId);
+  if (!quotation && targetLeadId) {
+    quotation = memoryQuotations.find((q) => q.lead_id === targetLeadId);
+  }
+
+  const now = new Date().toISOString();
+
   if (quotation) {
     quotation.status = "Rejected";
-    quotation.rejected_at = new Date().toISOString();
-    quotation.updated_at = new Date().toISOString();
-    const lead = memoryLeads.find((l) => l.id === quotation.lead_id);
-    if (lead) {
-      lead.lead_status = "Rejected / Lost";
-      lead.updated_at = new Date().toISOString();
-    }
+    quotation.rejected_at = now;
+    quotation.rejection_reason = reason as any;
+    quotation.rejection_reason_other = otherReason;
+    quotation.updated_at = now;
+  }
+
+  const effectiveLead = memoryLeads.find((l) => l.id === (quotation?.lead_id || targetLeadId));
+  if (effectiveLead) {
+    effectiveLead.lead_status = "Rejected / Lost";
+    effectiveLead.updated_at = now;
   }
 
   const live = await isSupabaseLive();
   if (live) {
     try {
       const supabase = await createServerSupabase();
-      const { data: dbQ } = await supabase
-        .from("quotations")
-        .update({
-          status: "Rejected",
-          rejected_at: new Date().toISOString(),
-          rejection_reason: reason || null,
-          rejection_reason_other: otherReason || null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", quotationId)
-        .select()
-        .single();
+      let dbQ: any = null;
 
-      if (dbQ) {
+      if (isValidUuid(quotationId)) {
+        const { data: updatedQ } = await supabase
+          .from("quotations")
+          .update({
+            status: "Rejected",
+            rejected_at: now,
+            rejection_reason: reason || null,
+            rejection_reason_other: otherReason || null,
+            updated_at: now,
+          })
+          .eq("id", quotationId)
+          .select()
+          .maybeSingle();
+
+        dbQ = updatedQ;
+      }
+
+      const effectiveLeadId = dbQ?.lead_id || targetLeadId;
+
+      if (!dbQ && effectiveLeadId && isValidUuid(effectiveLeadId)) {
+        const { data: existingQ } = await supabase
+          .from("quotations")
+          .select("*")
+          .eq("lead_id", effectiveLeadId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (existingQ) {
+          const { data: updatedExisting } = await supabase
+            .from("quotations")
+            .update({
+              status: "Rejected",
+              rejected_at: now,
+              rejection_reason: reason || null,
+              rejection_reason_other: otherReason || null,
+              updated_at: now,
+            })
+            .eq("id", existingQ.id)
+            .select()
+            .maybeSingle();
+          dbQ = updatedExisting || existingQ;
+        } else {
+          const { data: fetchedLead } = await supabase.from("leads").select("*").eq("id", effectiveLeadId).maybeSingle();
+          if (fetchedLead) {
+            const qNum = "Q-" + new Date().getFullYear() + "-" + effectiveLeadId.slice(0, 4).toUpperCase();
+            const { data: insertedQ } = await supabase
+              .from("quotations")
+              .insert({
+                lead_id: fetchedLead.id,
+                owner_id: fetchedLead.owner_id,
+                quotation_number: qNum,
+                status: "Rejected",
+                amount: Number(fetchedLead.budget) || 0,
+                rejected_at: now,
+                rejection_reason: reason || null,
+                rejection_reason_other: otherReason || null,
+              })
+              .select()
+              .maybeSingle();
+            dbQ = insertedQ;
+          }
+        }
+      }
+
+      if (effectiveLeadId && isValidUuid(effectiveLeadId)) {
         await supabase
           .from("leads")
           .update({
             lead_status: "Rejected / Lost",
-            updated_at: new Date().toISOString(),
+            updated_at: now,
           })
-          .eq("id", dbQ.lead_id);
+          .eq("id", effectiveLeadId);
 
         await recordSupabaseActivity(supabase, {
-          leadId: dbQ.lead_id,
+          leadId: effectiveLeadId,
           activityType: "QUOTATION_REJECTED",
           title: "Quotation Rejected",
           description: `Quotation marked as Rejected. ${reason ? `Reason: ${reason}` : ""}`,
         });
       }
-    } catch {}
+    } catch (err) {
+      console.error("Error rejecting quotation in Supabase:", err);
+    }
   }
 
   return { success: true };
 }
 
-export async function startNegotiationAction(quotationId: string, notes?: string) {
-  const quotation = memoryQuotations.find((q) => q.id === quotationId);
+export async function startNegotiationAction(quotationId: string, notes?: string, leadId?: string) {
+  const targetLeadId = extractLeadIdFromQuotation(quotationId, leadId);
+
+  let quotation = memoryQuotations.find((q) => q.id === quotationId);
+  if (!quotation && targetLeadId) {
+    quotation = memoryQuotations.find((q) => q.lead_id === targetLeadId);
+  }
+
+  const now = new Date().toISOString();
+
   if (quotation) {
     quotation.status = "Negotiating";
     if (notes) quotation.notes = notes;
-    quotation.updated_at = new Date().toISOString();
-    const lead = memoryLeads.find((l) => l.id === quotation.lead_id);
-    if (lead) {
-      lead.lead_status = "Negotiation";
-      lead.updated_at = new Date().toISOString();
-    }
+    quotation.updated_at = now;
+  }
+
+  const effectiveLead = memoryLeads.find((l) => l.id === (quotation?.lead_id || targetLeadId));
+  if (effectiveLead) {
+    effectiveLead.lead_status = "Negotiation";
+    effectiveLead.updated_at = now;
   }
 
   const live = await isSupabaseLive();
   if (live) {
     try {
       const supabase = await createServerSupabase();
-      const { data: dbQ } = await supabase
-        .from("quotations")
-        .update({
-          status: "Negotiating",
-          notes: notes || undefined,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", quotationId)
-        .select()
-        .single();
+      let dbQ: any = null;
 
-      if (dbQ) {
+      if (isValidUuid(quotationId)) {
+        const { data: updatedQ } = await supabase
+          .from("quotations")
+          .update({
+            status: "Negotiating",
+            notes: notes || undefined,
+            updated_at: now,
+          })
+          .eq("id", quotationId)
+          .select()
+          .maybeSingle();
+
+        dbQ = updatedQ;
+      }
+
+      const effectiveLeadId = dbQ?.lead_id || targetLeadId;
+
+      if (!dbQ && effectiveLeadId && isValidUuid(effectiveLeadId)) {
+        const { data: existingQ } = await supabase
+          .from("quotations")
+          .select("*")
+          .eq("lead_id", effectiveLeadId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (existingQ) {
+          const { data: updatedExisting } = await supabase
+            .from("quotations")
+            .update({
+              status: "Negotiating",
+              notes: notes || undefined,
+              updated_at: now,
+            })
+            .eq("id", existingQ.id)
+            .select()
+            .maybeSingle();
+          dbQ = updatedExisting || existingQ;
+        } else {
+          const { data: fetchedLead } = await supabase.from("leads").select("*").eq("id", effectiveLeadId).maybeSingle();
+          if (fetchedLead) {
+            const qNum = "Q-" + new Date().getFullYear() + "-" + effectiveLeadId.slice(0, 4).toUpperCase();
+            const { data: insertedQ } = await supabase
+              .from("quotations")
+              .insert({
+                lead_id: fetchedLead.id,
+                owner_id: fetchedLead.owner_id,
+                quotation_number: qNum,
+                status: "Negotiating",
+                amount: Number(fetchedLead.budget) || 0,
+                notes: notes || null,
+              })
+              .select()
+              .maybeSingle();
+            dbQ = insertedQ;
+          }
+        }
+      }
+
+      if (effectiveLeadId && isValidUuid(effectiveLeadId)) {
         await supabase
           .from("leads")
           .update({
             lead_status: "Negotiation",
-            updated_at: new Date().toISOString(),
+            updated_at: now,
           })
-          .eq("id", dbQ.lead_id);
+          .eq("id", effectiveLeadId);
 
         const ownerId = await getAuthenticatedOwnerId();
         await recordSupabaseActivity(supabase, {
-          leadId: dbQ.lead_id,
+          leadId: effectiveLeadId,
           ownerId,
           activityType: "NEGOTIATION_STARTED",
           title: "Negotiation Started",
           description: `Custom negotiation initiated. ${notes ? `Notes: "${notes}"` : ""}`,
         });
       }
-    } catch {}
+    } catch (err) {
+      console.error("Error starting negotiation in Supabase:", err);
+    }
   }
 
   return { success: true };
@@ -3771,15 +4154,54 @@ export async function deleteClientAction(clientId: string) {
   return { success: true };
 }
 
-export async function deleteQuotationAction(quotationId: string) {
-  memoryQuotations = memoryQuotations.filter((q) => q.id !== quotationId);
+export async function deleteQuotationAction(quotationId: string, leadId?: string) {
+  const effectiveLeadId = extractLeadIdFromQuotation(quotationId, leadId);
+
+  memoryQuotations = memoryQuotations.filter(
+    (q) =>
+      q.id !== quotationId &&
+      (!effectiveLeadId || (q.lead_id !== effectiveLeadId && q.id !== `q-${effectiveLeadId}` && q.id !== `q-lead-${effectiveLeadId}`))
+  );
+
+  if (effectiveLeadId) {
+    const memLead = memoryLeads.find((l) => l.id === effectiveLeadId);
+    if (memLead) {
+      memLead.lead_status = "Contacted";
+      memLead.next_action = "Discuss requirements & prepare quotation";
+      memLead.updated_at = new Date().toISOString();
+    }
+  }
 
   const live = await isSupabaseLive();
   if (live) {
     try {
       const supabase = await createServerSupabase();
-      await supabase.from("quotations").delete().eq("id", quotationId);
-    } catch {}
+      if (isValidUuid(quotationId)) {
+        await supabase.from("quotations").delete().eq("id", quotationId);
+      } else if (effectiveLeadId && isValidUuid(effectiveLeadId)) {
+        await supabase.from("quotations").delete().eq("lead_id", effectiveLeadId);
+      }
+
+      if (effectiveLeadId && isValidUuid(effectiveLeadId)) {
+        const { data: remainingQuotes } = await supabase
+          .from("quotations")
+          .select("id")
+          .eq("lead_id", effectiveLeadId);
+
+        if (!remainingQuotes || remainingQuotes.length === 0) {
+          await supabase
+            .from("leads")
+            .update({
+              lead_status: "Contacted",
+              next_action: "Discuss requirements & prepare quotation",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", effectiveLeadId);
+        }
+      }
+    } catch (err) {
+      console.error("Error in deleteQuotationAction:", err);
+    }
   }
 
   return { success: true };

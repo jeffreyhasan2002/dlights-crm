@@ -46,10 +46,57 @@ export function CRMViewSwitcher({
   const rawTab = searchParams?.get("view") || defaultView;
   const initialActiveTab = rawTab === "kanban" ? "tracking" : rawTab;
   const [activeTab, setActiveTab] = useState<string>(initialActiveTab);
+  const deletedQuotationIds = React.useRef<Set<string>>(new Set());
+  const deletedLeadQuoteIds = React.useRef<Set<string>>(new Set());
+
+  const mergeAllQuotations = React.useCallback((rawQuotes: Quotation[], leadsList: LeadWithDetails[]): Quotation[] => {
+    const map = new Map<string, Quotation>();
+    for (const q of rawQuotes) {
+      if (!deletedQuotationIds.current.has(q.id) && (!q.lead_id || !deletedLeadQuoteIds.current.has(q.lead_id))) {
+        map.set(q.id, q);
+      }
+    }
+    for (const l of leadsList) {
+      if (deletedLeadQuoteIds.current.has(l.id)) continue;
+      for (const q of l.quotations || []) {
+        if (!deletedQuotationIds.current.has(q.id) && !map.has(q.id)) {
+          map.set(q.id, { ...q, lead: l });
+        }
+      }
+      const s = (l.lead_status || "").toLowerCase();
+      const hasQuote = Array.from(map.values()).some((q) => q.lead_id === l.id);
+      if (
+        (s === "quotation sent" || s.includes("quotation") || s === "negotiation" || s === "accepted / booked") &&
+        !hasQuote
+      ) {
+        const synthStatus = s === "negotiation" ? "Negotiating" : s === "accepted / booked" ? "Accepted" : "Sent";
+        const qNum = `Q-${new Date(l.created_at || Date.now()).getFullYear()}-${l.id.slice(0, 4).toUpperCase()}`;
+        const synthQ: Quotation = {
+          id: "q-" + l.id,
+          lead_id: l.id,
+          owner_id: l.owner_id,
+          quotation_number: qNum,
+          amount: Number(l.budget) || 0,
+          total_amount: Number(l.budget) || 0,
+          valid_until: l.event_date || new Date(Date.now() + 14 * 86400000).toISOString().split("T")[0],
+          status: synthStatus,
+          sent_at: l.updated_at || l.created_at || new Date().toISOString(),
+          notes: `Quotation for ${l.event_type || "photography package"}.`,
+          created_at: l.created_at || new Date().toISOString(),
+          updated_at: l.updated_at || new Date().toISOString(),
+          lead: l,
+        };
+        map.set(synthQ.id, synthQ);
+      }
+    }
+    return Array.from(map.values());
+  }, []);
 
   const [leads, setLeads] = useState<LeadWithDetails[]>(serverLeads);
   const [followUps, setFollowUps] = useState<FollowUp[]>(serverFollowUps);
-  const [quotations, setQuotations] = useState<Quotation[]>(serverQuotations);
+  const [quotations, setQuotations] = useState<Quotation[]>(() =>
+    mergeAllQuotations(serverQuotations, serverLeads)
+  );
   const [bookings, setBookings] = useState<Booking[]>(serverBookings);
 
   // Track optimistic status overrides to prevent router.refresh() from reverting local state
@@ -83,8 +130,8 @@ export function CRMViewSwitcher({
   }, [serverFollowUps]);
 
   useEffect(() => {
-    setQuotations(serverQuotations);
-  }, [serverQuotations]);
+    setQuotations(mergeAllQuotations(serverQuotations, serverLeads));
+  }, [serverQuotations, serverLeads, mergeAllQuotations]);
 
   useEffect(() => {
     setBookings(serverBookings);
@@ -97,17 +144,104 @@ export function CRMViewSwitcher({
       prev.map((l) => (l.id === leadId ? { ...l, lead_status: targetStatus } : l))
     );
 
-    // If deal is moved to Negotiation, also update any quotation to Negotiating
-    if (targetStatus === "Negotiation") {
-      setQuotations((prev) =>
-        prev.map((q) =>
-          q.lead_id === leadId && q.status === "Sent" ? { ...q, status: "Negotiating" } : q
-        )
-      );
+    // If deal is moved to Quotation Sent
+    if (targetStatus === "Quotation Sent") {
+      setQuotations((prev) => {
+        const hasQuote = prev.some((q) => q.lead_id === leadId);
+        if (hasQuote) {
+          return prev.map((q) => (q.lead_id === leadId ? { ...q, status: "Sent" } : q));
+        }
+        const lead = leads.find((l) => l.id === leadId);
+        const newQ: Quotation = {
+          id: "q-" + leadId,
+          lead_id: leadId,
+          owner_id: lead?.owner_id || "",
+          quotation_number: `Q-${new Date().getFullYear()}-${leadId.slice(0, 4).toUpperCase()}`,
+          status: "Sent",
+          amount: Number(lead?.budget) || 0,
+          total_amount: Number(lead?.budget) || 0,
+          valid_until: new Date(Date.now() + 14 * 86400000).toISOString().split("T")[0],
+          sent_at: new Date().toISOString(),
+          notes: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          lead,
+        };
+        return [newQ, ...prev];
+      });
     }
 
-    // If deal is accepted or lost, automatically complete pending follow-ups for this lead
-    if (targetStatus === "Accepted / Booked" || targetStatus === "Rejected / Lost") {
+    // If deal is moved to Negotiation, also update any quotation to Negotiating
+    if (targetStatus === "Negotiation") {
+      setQuotations((prev) => {
+        const hasQuote = prev.some((q) => q.lead_id === leadId);
+        if (hasQuote) {
+          return prev.map((q) => (q.lead_id === leadId ? { ...q, status: "Negotiating" } : q));
+        }
+        const lead = leads.find((l) => l.id === leadId);
+        const newQ: Quotation = {
+          id: "q-" + leadId,
+          lead_id: leadId,
+          owner_id: lead?.owner_id || "",
+          quotation_number: `Q-${new Date().getFullYear()}-${leadId.slice(0, 4).toUpperCase()}`,
+          status: "Negotiating",
+          amount: Number(lead?.budget) || 0,
+          total_amount: Number(lead?.budget) || 0,
+          valid_until: new Date(Date.now() + 14 * 86400000).toISOString().split("T")[0],
+          sent_at: new Date().toISOString(),
+          notes: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          lead,
+        };
+        return [newQ, ...prev];
+      });
+    }
+
+    // If deal is accepted or lost, automatically sync quotations and complete pending follow-ups
+    if (targetStatus === "Accepted / Booked") {
+      setQuotations((prev) =>
+        prev.map((q) => (q.lead_id === leadId ? { ...q, status: "Accepted" } : q))
+      );
+      setFollowUps((prev) =>
+        prev.map((f) =>
+          f.lead_id === leadId && !f.completed_at
+            ? { ...f, completed_at: new Date().toISOString(), notes: (f.notes ? f.notes + " • " : "") + `Deal marked as ${targetStatus}` }
+            : f
+        )
+      );
+      setBookings((prev) => {
+        if (prev.some((b) => b.lead_id === leadId)) {
+          return prev.map((b) => (b.lead_id === leadId ? { ...b, booking_status: "Booking Confirmed" } : b));
+        }
+        const lead = leads.find((l) => l.id === leadId);
+        const quote = quotations.find((q) => q.lead_id === leadId);
+        const total = Number(quote?.amount) || Number(lead?.budget) || 0;
+        const adv = Math.round(total * 0.35);
+        const newBooking: Booking = {
+          id: "b-" + leadId,
+          lead_id: leadId,
+          client_id: lead?.client_id || "",
+          owner_id: lead?.owner_id || "",
+          booking_status: "Booking Confirmed",
+          booking_date: new Date().toISOString().split("T")[0],
+          total_amount: total,
+          advance_amount: adv,
+          remaining_amount: total - adv,
+          advance_paid_at: null,
+          final_payment_due_date: lead?.event_date || null,
+          notes: "Confirmed booking contract.",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        return [newBooking, ...prev];
+      });
+    }
+
+    if (targetStatus === "Rejected / Lost") {
+      setQuotations((prev) =>
+        prev.map((q) => (q.lead_id === leadId ? { ...q, status: "Rejected" } : q))
+      );
       setFollowUps((prev) =>
         prev.map((f) =>
           f.lead_id === leadId && !f.completed_at
@@ -123,6 +257,16 @@ export function CRMViewSwitcher({
       prev.map((q) => (q.id === updatedQuotation.id ? updatedQuotation : q))
     );
 
+    let targetStatus: LeadStatus | undefined;
+    if (updatedQuotation.status === "Accepted") targetStatus = "Accepted / Booked";
+    else if (updatedQuotation.status === "Rejected") targetStatus = "Rejected / Lost";
+    else if (updatedQuotation.status === "Negotiating") targetStatus = "Negotiation";
+    else if (updatedQuotation.status === "Sent") targetStatus = "Quotation Sent";
+
+    if (targetStatus && updatedQuotation.lead_id) {
+      setStatusOverrides((prev) => ({ ...prev, [updatedQuotation.lead_id]: targetStatus! }));
+    }
+
     setLeads((prev) =>
       prev.map((l) => {
         if (l.id === updatedQuotation.lead_id) {
@@ -133,22 +277,44 @@ export function CRMViewSwitcher({
             updatedQuotes.unshift(updatedQuotation);
           }
 
-          let targetStatus = l.lead_status;
-          if (updatedQuotation.status === "Accepted") targetStatus = "Accepted / Booked";
-          else if (updatedQuotation.status === "Rejected") targetStatus = "Rejected / Lost";
-          else if (updatedQuotation.status === "Negotiating") targetStatus = "Negotiation";
-          else if (updatedQuotation.status === "Sent") targetStatus = "Quotation Sent";
-
           return {
             ...l,
             quotations: updatedQuotes,
             budget: updatedQuotation.amount || updatedQuotation.total_amount || l.budget,
-            lead_status: targetStatus,
+            lead_status: targetStatus || l.lead_status,
           };
         }
         return l;
       })
     );
+
+    if (updatedQuotation.status === "Accepted") {
+      setBookings((prev) => {
+        if (prev.some((b) => b.lead_id === updatedQuotation.lead_id)) {
+          return prev.map((b) => (b.lead_id === updatedQuotation.lead_id ? { ...b, booking_status: "Booking Confirmed" } : b));
+        }
+        const lead = leads.find((l) => l.id === updatedQuotation.lead_id);
+        const total = Number(updatedQuotation.amount) || Number(updatedQuotation.total_amount) || Number(lead?.budget) || 0;
+        const adv = Math.round(total * 0.35);
+        const newBooking: Booking = {
+          id: "b-" + updatedQuotation.lead_id,
+          lead_id: updatedQuotation.lead_id,
+          client_id: lead?.client_id || "",
+          owner_id: lead?.owner_id || "",
+          booking_status: "Booking Confirmed",
+          booking_date: new Date().toISOString().split("T")[0],
+          total_amount: total,
+          advance_amount: adv,
+          remaining_amount: total - adv,
+          advance_paid_at: null,
+          final_payment_due_date: lead?.event_date || null,
+          notes: "Confirmed booking contract.",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        return [newBooking, ...prev];
+      });
+    }
 
     if (updatedQuotation.status === "Accepted" || updatedQuotation.status === "Rejected") {
       setFollowUps((prev) =>
@@ -161,6 +327,64 @@ export function CRMViewSwitcher({
               }
             : f
         )
+      );
+    }
+  };
+
+  const handleQuotationCreate = (newQuotation: Quotation) => {
+    setQuotations((prev) => [newQuotation, ...prev.filter((q) => q.id !== newQuotation.id)]);
+
+    setLeads((prev) =>
+      prev.map((l) => {
+        if (l.id === newQuotation.lead_id) {
+          const updatedQuotes = [newQuotation, ...(l.quotations || []).filter((q) => q.id !== newQuotation.id)];
+          return {
+            ...l,
+            quotations: updatedQuotes,
+            budget: newQuotation.amount || newQuotation.total_amount || l.budget,
+            lead_status: "Quotation Sent",
+          };
+        }
+        return l;
+      })
+    );
+  };
+
+  const handleQuotationDelete = (quotationId: string, leadId?: string) => {
+    deletedQuotationIds.current.add(quotationId);
+    if (leadId) {
+      deletedLeadQuoteIds.current.add(leadId);
+      deletedQuotationIds.current.add(`q-${leadId}`);
+      deletedQuotationIds.current.add(`q-lead-${leadId}`);
+      setStatusOverrides((prev) => ({ ...prev, [leadId]: "Contacted" }));
+    }
+
+    setQuotations((prev) =>
+      prev.filter(
+        (q) =>
+          q.id !== quotationId &&
+          (!leadId || (q.lead_id !== leadId && q.id !== `q-${leadId}` && q.id !== `q-lead-${leadId}`))
+      )
+    );
+
+    if (leadId) {
+      setLeads((prev) =>
+        prev.map((l) => {
+          if (l.id === leadId) {
+            const remainingQuotes = (l.quotations || []).filter(
+              (q) =>
+                q.id !== quotationId &&
+                q.id !== `q-${leadId}` &&
+                q.id !== `q-lead-${leadId}`
+            );
+            return {
+              ...l,
+              quotations: remainingQuotes,
+              lead_status: remainingQuotes.length > 0 ? l.lead_status : "Contacted",
+            };
+          }
+          return l;
+        })
       );
     }
   };
@@ -413,9 +637,18 @@ export function CRMViewSwitcher({
             initialQuotations={quotations}
             leads={enrichedLeads}
             onQuotationUpdate={handleQuotationUpdate}
+            onQuotationCreate={handleQuotationCreate}
+            onQuotationDelete={handleQuotationDelete}
+            onLeadStatusChange={handleLeadStatusChange}
           />
         )}
-        {activeTab === "negotiations" && <NegotiationsView leads={enrichedLeads} />}
+        {activeTab === "negotiations" && (
+          <NegotiationsView
+            leads={enrichedLeads}
+            onLeadStatusChange={handleLeadStatusChange}
+            onQuotationUpdate={handleQuotationUpdate}
+          />
+        )}
         {activeTab === "booked" && <BookedView leads={enrichedLeads} bookings={bookings} />}
         {activeTab === "lost" && <LostView leads={enrichedLeads} />}
       </div>

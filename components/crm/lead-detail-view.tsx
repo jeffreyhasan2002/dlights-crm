@@ -51,6 +51,8 @@ import {
   TableProperties,
   Users,
   Lock,
+  ChevronDown,
+  PhoneCall,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -62,6 +64,7 @@ import {
   Note,
   Activity,
   LeadStatus,
+  ContactStatus,
   Profile,
 } from "@/types/crm";
 import {
@@ -132,6 +135,7 @@ import {
   addNoteServerAction,
   logCommunicationServerAction,
   updateLeadStatusServerAction,
+  updateContactStatusServerAction,
   sendQuotationServerAction,
   acceptQuotationServerAction,
   startNegotiationServerAction,
@@ -694,6 +698,27 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
     }
   };
 
+  const handleUpdateContactStatus = async (newStatus: ContactStatus) => {
+    if (lead.contact_status === newStatus) return;
+    const now = new Date().toISOString();
+    setLead((prev) => ({
+      ...prev,
+      contact_status: newStatus,
+      last_contacted_at: newStatus !== "Not Contacted" ? now : prev.last_contacted_at,
+    }));
+    try {
+      const res = await updateContactStatusServerAction(lead.id, newStatus);
+      if (res.success) {
+        toast.success(`Contact status updated to "${newStatus}"`);
+        router.refresh();
+      } else {
+        toast.error("Failed to update contact status");
+      }
+    } catch {
+      toast.error("An error occurred while updating contact status");
+    }
+  };
+
   const copyToClipboard = (text: string, fieldName: string) => {
     navigator.clipboard.writeText(text);
     setCopiedField(fieldName);
@@ -804,6 +829,20 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                   className="text-[10px] px-2 py-0 font-semibold"
                 >
                   {lead.lead_status}
+                </Badge>
+                <Badge
+                  variant="outline"
+                  className={`text-[10px] px-2 py-0 hidden lg:inline-flex font-medium ${
+                    lead.contact_status === "Responded"
+                      ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                      : lead.contact_status === "Contacted – Waiting for Response"
+                        ? "bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/30"
+                        : lead.contact_status === "No Response"
+                          ? "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30"
+                          : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {lead.contact_status || "Not Contacted"}
                 </Badge>
                 {lead.event_date && (
                   <span className="text-xs text-muted-foreground hidden md:inline-flex items-center gap-1 font-medium">
@@ -1013,6 +1052,84 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                   >
                     {lead.lead_status}
                   </Badge>
+
+                  {/* Interactive Contact Status Dropdown Badge */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full border transition-all hover:opacity-90 active:scale-95 shadow-2xs cursor-pointer ${
+                          lead.contact_status === "Responded"
+                            ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                            : lead.contact_status === "Contacted – Waiting for Response"
+                              ? "bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/30"
+                              : lead.contact_status === "No Response"
+                                ? "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30"
+                                : "bg-muted text-muted-foreground border-border"
+                        }`}
+                        title="Click to update contact status"
+                      >
+                        <span
+                          className={`h-2 w-2 rounded-full shrink-0 ${
+                            lead.contact_status === "Responded"
+                              ? "bg-emerald-500"
+                              : lead.contact_status === "Contacted – Waiting for Response"
+                                ? "bg-sky-500 animate-pulse"
+                                : lead.contact_status === "No Response"
+                                  ? "bg-amber-500"
+                                  : "bg-slate-400"
+                          }`}
+                        />
+                        <span>{lead.contact_status || "Not Contacted"}</span>
+                        <ChevronDown className="h-3 w-3 opacity-60 ml-0.5" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-56 p-1.5 space-y-1">
+                      <DropdownMenuLabel className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-2 py-1">
+                        Change Contact Status
+                      </DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      {[
+                        {
+                          status: "Not Contacted" as ContactStatus,
+                          label: "Not Contacted",
+                          dotClass: "bg-slate-400",
+                        },
+                        {
+                          status: "Contacted – Waiting for Response" as ContactStatus,
+                          label: "Waiting for Response",
+                          dotClass: "bg-sky-500",
+                        },
+                        {
+                          status: "Responded" as ContactStatus,
+                          label: "Responded",
+                          dotClass: "bg-emerald-500",
+                        },
+                        {
+                          status: "No Response" as ContactStatus,
+                          label: "No Response",
+                          dotClass: "bg-amber-500",
+                        },
+                      ].map((opt) => {
+                        const isCurrent = (lead.contact_status || "Not Contacted") === opt.status;
+                        return (
+                          <DropdownMenuItem
+                            key={opt.status}
+                            onClick={() => handleUpdateContactStatus(opt.status)}
+                            className={`flex items-center justify-between px-2.5 py-2 text-xs rounded-md cursor-pointer ${
+                              isCurrent ? "bg-muted font-bold text-foreground" : "text-muted-foreground hover:text-foreground"
+                            }`}
+                          >
+                            <span className="flex items-center gap-2">
+                              <span className={`h-2 w-2 rounded-full shrink-0 ${opt.dotClass}`} />
+                              <span>{opt.label}</span>
+                            </span>
+                            {isCurrent && <Check className="h-3.5 w-3.5 text-primary" />}
+                          </DropdownMenuItem>
+                        );
+                      })}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                   {displayedEvents.length > 1 && (
                     <Badge
                       variant="secondary"
@@ -1111,6 +1228,76 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
 
             {/* Primary Top Action Buttons */}
             <div className="flex items-center gap-2.5 self-start lg:self-center shrink-0 flex-wrap">
+              {/* Quick Contact Status Dropdown Button */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2 text-xs h-9 px-3.5 font-medium rounded-lg border-border/80 bg-background/90 hover:bg-muted/80 shadow-2xs text-foreground cursor-pointer transition-all active:scale-[0.98]"
+                  >
+                    <span
+                      className={`h-2 w-2 rounded-full shrink-0 ${
+                        lead.contact_status === "Responded"
+                          ? "bg-emerald-500"
+                          : lead.contact_status === "Contacted – Waiting for Response"
+                            ? "bg-sky-500 animate-pulse"
+                            : lead.contact_status === "No Response"
+                              ? "bg-amber-500"
+                              : "bg-slate-400"
+                      }`}
+                    />
+                    <span className="text-muted-foreground hidden sm:inline">Contact:</span>
+                    <span className="font-semibold">{lead.contact_status || "Not Contacted"}</span>
+                    <ChevronDown className="h-3 w-3 text-muted-foreground opacity-60 ml-0.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 p-1.5 space-y-1">
+                  <DropdownMenuLabel className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-2 py-1">
+                    Update Contact Status
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {[
+                    {
+                      status: "Not Contacted" as ContactStatus,
+                      label: "Not Contacted",
+                      dotClass: "bg-slate-400",
+                    },
+                    {
+                      status: "Contacted – Waiting for Response" as ContactStatus,
+                      label: "Waiting for Response",
+                      dotClass: "bg-sky-500",
+                    },
+                    {
+                      status: "Responded" as ContactStatus,
+                      label: "Responded",
+                      dotClass: "bg-emerald-500",
+                    },
+                    {
+                      status: "No Response" as ContactStatus,
+                      label: "No Response",
+                      dotClass: "bg-amber-500",
+                    },
+                  ].map((opt) => {
+                    const isCurrent = (lead.contact_status || "Not Contacted") === opt.status;
+                    return (
+                      <DropdownMenuItem
+                        key={opt.status}
+                        onClick={() => handleUpdateContactStatus(opt.status)}
+                        className={`flex items-center justify-between px-2.5 py-2 text-xs rounded-md cursor-pointer ${
+                          isCurrent ? "bg-muted font-bold text-foreground" : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        <span className="flex items-center gap-2">
+                          <span className={`h-2 w-2 rounded-full shrink-0 ${opt.dotClass}`} />
+                          <span>{opt.label}</span>
+                        </span>
+                        {isCurrent && <Check className="h-3.5 w-3.5 text-primary" />}
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </DropdownMenuContent>
+              </DropdownMenu>
               {client.whatsapp && (
                 <Button
                   size="sm"
@@ -1243,22 +1430,22 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
         </div>
 
         {/* 3. 4-METRIC UNIFIED DASHBOARD KPI STRIP */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 rounded-2xl border-0 bg-transparent shadow-[0_1px_2px_rgba(15,23,42,0.06),0_8px_22px_rgba(15,23,42,0.035)]">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
           {/* Card 1: Estimated Budget / Contract Value */}
-          <div className="p-4 rounded-2xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.06),0_8px_22px_rgba(15,23,42,0.035)] space-y-2">
+          <div className="p-5 rounded-2xl border border-border/80 bg-card text-card-foreground shadow-xs hover:border-primary/30 hover:shadow-sm transition-all space-y-2.5">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                 {booking ? "Contract Value" : "Estimated Budget"}
               </span>
-              <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center text-slate-700 dark:text-slate-200">
-                <IndianRupee className="h-3.5 w-3.5" />
+              <div className="h-8 w-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                <IndianRupee className="h-4 w-4" />
               </div>
             </div>
-            <div className="text-3xl sm:text-[2rem] leading-none font-bold tracking-[-0.04em] tabular-nums text-slate-950 dark:text-white">
+            <div className="text-2xl sm:text-[1.85rem] leading-none font-bold tracking-tight tabular-nums text-foreground">
               {formatCurrency(actualContractTotal)}
             </div>
-            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
-              <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground pt-0.5">
+              <span className="text-emerald-600 dark:text-emerald-400 font-semibold bg-emerald-500/10 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded text-[11px]">
                 {lead.profit_percentage ?? 30}% Margin
               </span>
               <span>•</span>
@@ -1273,41 +1460,41 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
           </div>
 
           {/* Card 2: Financial Settlement Status */}
-          <div className="p-4 rounded-2xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.06),0_8px_22px_rgba(15,23,42,0.035)] space-y-2">
+          <div className="p-5 rounded-2xl border border-border/80 bg-card text-card-foreground shadow-xs hover:border-primary/30 hover:shadow-sm transition-all space-y-2.5">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Financial Status
               </span>
-              <div className="h-7 w-7 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-                <CreditCard className="h-3.5 w-3.5" />
+              <div className="h-8 w-8 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                <CreditCard className="h-4 w-4" />
               </div>
             </div>
-            <div className="text-3xl sm:text-[2rem] leading-none font-bold tracking-[-0.04em] tabular-nums text-slate-950 dark:text-white flex items-baseline gap-1.5">
+            <div className="text-2xl sm:text-[1.85rem] leading-none font-bold tracking-tight tabular-nums text-foreground flex items-baseline gap-1.5">
               <span>{formatCurrency(actualTotalPaid)}</span>
-              <span className="text-xs text-slate-500 dark:text-slate-400 font-normal">
+              <span className="text-xs text-muted-foreground font-normal">
                 / {formatCurrency(actualContractTotal)}
               </span>
             </div>
             {/* Payment progress indicator */}
-            <div className="space-y-1">
-              <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+            <div className="space-y-1.5 pt-0.5">
+              <div className="h-2 w-full rounded-full bg-muted overflow-hidden border border-border/40">
                 <div
-                  className={`h-full transition-all duration-300 ${
+                  className={`h-full transition-all duration-500 rounded-full ${
                     paidPercent >= 100
                       ? "bg-emerald-500"
                       : paidPercent > 0
-                        ? "bg-emerald-500"
+                        ? "bg-gradient-to-r from-emerald-500 to-primary"
                         : "bg-transparent"
                   }`}
                   style={{ width: `${paidPercent}%` }}
                 />
               </div>
-              <div className="flex justify-between text-[10px] font-medium">
+              <div className="flex justify-between text-[11px] font-medium">
                 <span
                   className={
                     paidPercent > 0
                       ? "text-emerald-700 dark:text-emerald-300 font-bold"
-                      : "text-slate-500 dark:text-slate-400"
+                      : "text-muted-foreground"
                   }
                 >
                   {paidPercent}% Paid
@@ -1315,7 +1502,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                 <span
                   className={
                     actualRemainingDue > 0
-                      ? "text-slate-500 dark:text-slate-500 font-semibold"
+                      ? "text-muted-foreground font-semibold"
                       : "text-emerald-600 font-bold"
                   }
                 >
@@ -1328,20 +1515,20 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
           </div>
 
           {/* Card 3: Upcoming Ceremony Date */}
-          <div className="p-4 rounded-2xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.06),0_8px_22px_rgba(15,23,42,0.035)] space-y-2">
+          <div className="p-5 rounded-2xl border border-border/80 bg-card text-card-foreground shadow-xs hover:border-primary/30 hover:shadow-sm transition-all space-y-2.5">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Ceremony Schedule
               </span>
-              <div className="h-7 w-7 rounded-lg bg-slate-1000/10 flex items-center justify-center text-slate-500 dark:text-slate-500">
-                <Calendar className="h-3.5 w-3.5" />
+              <div className="h-8 w-8 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                <Calendar className="h-4 w-4" />
               </div>
             </div>
-            <div className="text-3xl sm:text-[2rem] leading-none font-bold tracking-[-0.04em] tabular-nums text-slate-950 dark:text-white line-clamp-1">
+            <div className="text-2xl sm:text-[1.85rem] leading-none font-bold tracking-tight tabular-nums text-foreground line-clamp-1">
               {lead.event_date ? formatDate(lead.event_date) : "Date TBD"}
             </div>
-            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
-              <Clock className="h-3 w-3 text-slate-500 dark:text-slate-400 shrink-0" />
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground pt-0.5">
+              <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
               <span className="truncate">
                 {displayedEvents.length > 1
                   ? `${displayedEvents.length} Ceremonies Scheduled`
@@ -1352,27 +1539,35 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
 
           {/* Card 4: Next Action & Follow-up Due */}
           <div
-            className={`p-4 rounded-2xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.06),0_8px_22px_rgba(15,23,42,0.035)] space-y-2 ${overdue ? "border-destructive/40 bg-destructive/5" : ""}`}
+            className={`p-5 rounded-2xl border bg-card text-card-foreground shadow-xs hover:border-primary/30 hover:shadow-sm transition-all space-y-2.5 ${
+              overdue
+                ? "border-destructive/40 bg-destructive/5"
+                : "border-border/80"
+            }`}
           >
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Next Action
               </span>
               <div
-                className={`h-7 w-7 rounded-lg flex items-center justify-center ${overdue ? "bg-destructive/15 text-destructive" : "bg-slate-1000/10 text-slate-500 dark:text-slate-500"}`}
+                className={`h-8 w-8 rounded-xl flex items-center justify-center ${
+                  overdue
+                    ? "bg-destructive/15 text-destructive"
+                    : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                }`}
               >
-                <Clock className="h-3.5 w-3.5" />
+                <Clock className="h-4 w-4" />
               </div>
             </div>
-            <div className="text-lg font-bold tracking-[-0.025em] text-slate-950 dark:text-white line-clamp-1">
+            <div className="text-base sm:text-lg font-bold tracking-tight text-foreground line-clamp-1">
               {lead.next_action || "Standard follow-up"}
             </div>
-            <div className="flex items-center gap-1.5 text-[11px]">
+            <div className="flex items-center gap-1.5 text-xs pt-0.5">
               <span
                 className={
                   overdue
                     ? "text-destructive font-bold"
-                    : "text-slate-500 dark:text-slate-400"
+                    : "text-muted-foreground"
                 }
               >
                 {lead.next_follow_up_at
@@ -1381,7 +1576,7 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
                   : "No follow-up set"}
               </span>
               <span>•</span>
-              <span className="text-slate-500 dark:text-slate-400">
+              <span className="text-muted-foreground">
                 {lead.follow_up_count} logs
               </span>
             </div>
@@ -1400,11 +1595,12 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
         {/* 5. MAIN WORKSPACE WITH REFINED TABS & SIDEBAR */}
         <div className="flex items-center gap-3" aria-hidden="true">
           <span className="h-px flex-1 bg-border/70" />
-          <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             Workspace
           </span>
           <span className="h-px flex-1 bg-border/70" />
         </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left 2 Columns: Structured Tabbed Workspace */}
           <div className="lg:col-span-2 space-y-6">
@@ -1414,22 +1610,22 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
               className="w-full space-y-5"
             >
               {/* Primary Tab Bar with Mobile Horizontal Scroll Protection */}
-              <div className="border-b border-slate-200">
+              <div className="border-b border-border/80 pb-0">
                 <div className="overflow-x-auto scrollbar-none -mx-1 px-1">
-                  <TabsList className="bg-transparent p-0 h-auto gap-1.5 flex flex-nowrap justify-start min-w-max border-b border-slate-200">
+                  <TabsList className="bg-transparent p-0 h-auto gap-2 flex flex-nowrap justify-start min-w-max border-b-0">
                     <TabsTrigger
                       value="overview"
-                      className="data-[state=active]:border-primary data-[state=active]:text-slate-900 dark:text-slate-100 text-xs px-3.5 py-3 rounded-none border-b-2 border-transparent gap-1.5 font-semibold transition-colors hover:text-slate-900 dark:text-slate-100 hover:bg-transparent"
+                      className="data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none text-xs px-4 py-3 rounded-none border-b-2 border-transparent gap-2 font-semibold transition-all hover:text-foreground hover:bg-transparent text-muted-foreground"
                     >
-                      <Camera className="h-3.5 w-3.5 text-slate-700 dark:text-slate-200" />
+                      <Camera className="h-4 w-4 text-primary" />
                       <span>Overview & Schedule</span>
                     </TabsTrigger>
 
                     <TabsTrigger
                       value="financials"
-                      className="data-[state=active]:border-primary data-[state=active]:text-slate-900 dark:text-slate-100 text-xs px-3.5 py-3 rounded-none border-b-2 border-transparent gap-1.5 font-semibold transition-colors hover:text-slate-900 dark:text-slate-100 hover:bg-transparent"
+                      className="data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none text-xs px-4 py-3 rounded-none border-b-2 border-transparent gap-2 font-semibold transition-all hover:text-foreground hover:bg-transparent text-muted-foreground"
                     >
-                      <CreditCard className="h-3.5 w-3.5 text-slate-500" />
+                      <CreditCard className="h-4 w-4 text-emerald-600" />
                       <span>Financials & Quotations</span>
                       {paymentsList.length + quotations.length > 0 && (
                         <Badge
@@ -1443,9 +1639,9 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
 
                     <TabsTrigger
                       value="production"
-                      className="data-[state=active]:border-primary data-[state=active]:text-slate-900 dark:text-slate-100 text-xs px-3.5 py-3 rounded-none border-b-2 border-transparent gap-1.5 font-semibold transition-colors hover:text-slate-900 dark:text-slate-100 hover:bg-transparent"
+                      className="data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none text-xs px-4 py-3 rounded-none border-b-2 border-transparent gap-2 font-semibold transition-all hover:text-foreground hover:bg-transparent text-muted-foreground"
                     >
-                      <Film className="h-3.5 w-3.5 text-slate-500" />
+                      <Film className="h-4 w-4 text-indigo-500" />
                       <span>Post-Production</span>
                     </TabsTrigger>
 

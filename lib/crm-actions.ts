@@ -204,7 +204,7 @@ export async function createQuotationServerAction(data: {
 }
 
 export async function sendQuotationServerAction(quotationId: string, leadId?: string) {
-  const res = await sendQuotationAction(quotationId);
+  const res = await sendQuotationAction(quotationId, leadId);
   revalidatePath("/dashboard");
   revalidatePath("/crm");
   if (leadId) revalidatePath(`/crm/${leadId}`);
@@ -212,7 +212,7 @@ export async function sendQuotationServerAction(quotationId: string, leadId?: st
 }
 
 export async function acceptQuotationServerAction(quotationId: string, leadId?: string) {
-  const res = await acceptQuotationAction(quotationId);
+  const res = await acceptQuotationAction(quotationId, leadId);
   revalidatePath("/dashboard");
   revalidatePath("/crm");
   revalidatePath("/payments");
@@ -226,7 +226,7 @@ export async function rejectQuotationServerAction(
   otherReason?: string,
   leadId?: string
 ) {
-  const res = await rejectQuotationAction(quotationId, reason, otherReason);
+  const res = await rejectQuotationAction(quotationId, reason, otherReason, leadId);
   revalidatePath("/dashboard");
   revalidatePath("/crm");
   if (leadId) revalidatePath(`/crm/${leadId}`);
@@ -238,7 +238,7 @@ export async function startNegotiationServerAction(
   notes?: string,
   leadId?: string
 ) {
-  const res = await startNegotiationAction(quotationId, notes);
+  const res = await startNegotiationAction(quotationId, notes, leadId);
   revalidatePath("/dashboard");
   revalidatePath("/crm");
   if (leadId) revalidatePath(`/crm/${leadId}`);
@@ -338,7 +338,7 @@ export async function deleteClientServerAction(clientId: string) {
 }
 
 export async function deleteQuotationServerAction(quotationId: string, leadId?: string) {
-  const res = await deleteQuotationAction(quotationId);
+  const res = await deleteQuotationAction(quotationId, leadId);
   revalidatePath("/dashboard");
   revalidatePath("/crm");
   if (leadId) revalidatePath(`/crm/${leadId}`);

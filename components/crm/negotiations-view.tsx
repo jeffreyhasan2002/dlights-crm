@@ -27,9 +27,11 @@ import { updateLeadStatusServerAction, acceptQuotationServerAction } from "@/lib
 
 interface NegotiationsViewProps {
   leads: LeadWithDetails[];
+  onLeadStatusChange?: (leadId: string, status: any) => void;
+  onQuotationUpdate?: (updatedQuotation: any) => void;
 }
 
-export function NegotiationsView({ leads }: NegotiationsViewProps) {
+export function NegotiationsView({ leads, onLeadStatusChange, onQuotationUpdate }: NegotiationsViewProps) {
   const router = useRouter();
   const [processingLeadId, setProcessingLeadId] = useState<string | null>(null);
 
@@ -49,8 +51,18 @@ export function NegotiationsView({ leads }: NegotiationsViewProps) {
   const handleQuickBook = async (lead: LeadWithDetails) => {
     try {
       setProcessingLeadId(lead.id);
+      if (onLeadStatusChange) {
+        onLeadStatusChange(lead.id, "Accepted / Booked");
+      }
       const quotation = lead.quotations?.[0];
       if (quotation) {
+        if (onQuotationUpdate) {
+          onQuotationUpdate({
+            ...quotation,
+            status: "Accepted",
+            accepted_at: new Date().toISOString(),
+          });
+        }
         await acceptQuotationServerAction(quotation.id, lead.id);
       } else {
         await updateLeadStatusServerAction(lead.id, "Accepted / Booked");
