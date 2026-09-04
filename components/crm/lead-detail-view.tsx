@@ -17,6 +17,7 @@ import {
   CreditCard,
   Building2,
   StickyNote,
+  Edit3,
   Send,
   CheckCircle2,
   XCircle,
@@ -36,10 +37,11 @@ import {
   Loader2,
   AlertCircle,
   Trash2,
+  Tag,
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { LeadWithDetails, Quotation, Booking, Communication, Note, Activity, LeadStatus } from "@/types/crm";
+import { LeadWithDetails, Quotation, Booking, Communication, Note, Activity, LeadStatus, Profile } from "@/types/crm";
 import { formatCurrency, formatDate, formatDateTime, isOverdue } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -67,7 +69,15 @@ import {
 } from "@/components/ui/alert-dialog";
 import { LeadTimeline } from "@/components/crm/lead-timeline";
 import { LeadActionDialogs } from "@/components/crm/lead-action-dialogs";
+import { EditLeadDialog } from "@/components/crm/edit-lead-dialog";
+import { WhatsAppProposalDialog } from "@/components/crm/whatsapp-proposal-dialog";
+import { ShootCallSheetDialog } from "@/components/crm/shoot-call-sheet-dialog";
+import { DeliverablesEditor } from "@/components/crm/deliverables-editor";
+import { LeadExpenseCalculator } from "@/components/crm/lead-expense-calculator";
 import { PipelineStageStepper } from "@/components/crm/pipeline-stage-stepper";
+import { PostProductionTracker } from "@/components/crm/post-production-tracker";
+import { RecordPaymentDialog } from "@/components/payments/record-payment-dialog";
+import { WhatsAppPaymentReminderDialog } from "@/components/payments/whatsapp-payment-reminder-dialog";
 import {
   addNoteServerAction,
   logCommunicationServerAction,
@@ -80,9 +90,10 @@ import {
 
 interface LeadDetailViewProps {
   initialLead: LeadWithDetails;
+  profile?: Profile;
 }
 
-export function LeadDetailView({ initialLead }: LeadDetailViewProps) {
+export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
   const router = useRouter();
   const [lead, setLead] = useState<LeadWithDetails>(initialLead);
   const [copiedField, setCopiedField] = useState<string | null>(null);
@@ -90,18 +101,6 @@ export function LeadDetailView({ initialLead }: LeadDetailViewProps) {
   // Quick inline note state
   const [quickNote, setQuickNote] = useState("");
   const [isAddingNote, setIsAddingNote] = useState(false);
-
-  // Deliverables checklist local state
-  const [deliverables, setDeliverables] = useState<Record<string, boolean>>({
-    candidStills: true,
-    cinematicFilm: true,
-    traditionalCoverage: true,
-    droneCinematography: Boolean((initialLead?.budget || 0) >= 400000),
-    preWeddingShoot: Boolean(initialLead?.event_type?.toLowerCase()?.includes("pre-wedding")),
-    luxuryAlbum: true,
-    rawFootageDrive: true,
-    sameDayReels: Boolean((initialLead?.budget || 0) >= 450000),
-  });
 
   useEffect(() => {
     if (initialLead) {
@@ -214,14 +213,6 @@ export function LeadDetailView({ initialLead }: LeadDetailViewProps) {
     }
   };
 
-  const toggleDeliverable = (key: string) => {
-    setDeliverables((prev) => ({
-      ...prev,
-      [key]: !prev[key],
-    }));
-    toast.info("Deliverables checklist updated");
-  };
-
   const [isDeleting, setIsDeleting] = useState(false);
 
   const handleDeleteLead = async () => {
@@ -262,8 +253,11 @@ export function LeadDetailView({ initialLead }: LeadDetailViewProps) {
           </BreadcrumbList>
         </Breadcrumb>
 
-        {/* Lead Action Modals + Delete Lead */}
+        {/* Lead Action Modals + Edit Lead + Proposal + Call Sheet + Delete Lead */}
         <div className="flex items-center gap-2 flex-wrap">
+          <WhatsAppProposalDialog lead={lead} profile={profile} />
+          <ShootCallSheetDialog lead={lead} profile={profile} />
+          <EditLeadDialog lead={lead} />
           <LeadActionDialogs lead={lead} />
 
           <AlertDialog>
@@ -402,7 +396,7 @@ export function LeadDetailView({ initialLead }: LeadDetailViewProps) {
             >
               <a
                 href={`https://wa.me/${client.whatsapp.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(
-                  `Hi ${client.name}! This is Dlight Studios regarding your ${lead.event_type} on ${lead.event_date ? formatDate(lead.event_date) : "the upcoming date"}.`
+                  `Hi ${client.name}! This is ${profile?.business_name || "Dlight Studios"} regarding your ${lead.event_type} on ${lead.event_date ? formatDate(lead.event_date) : "the upcoming date"}.`
                 )}`}
                 target="_blank"
                 rel="noreferrer"
@@ -426,7 +420,7 @@ export function LeadDetailView({ initialLead }: LeadDetailViewProps) {
             <Button size="sm" variant="outline" className="gap-1.5 text-xs shadow-2xs" asChild>
               <a
                 href={`mailto:${client.email}?subject=${encodeURIComponent(
-                  `Dlight Studios Photography Proposal for ${client.name}`
+                  `${profile?.business_name || "Dlight Studios"} Photography Proposal for ${client.name}`
                 )}`}
               >
                 <Mail className="h-4 w-4" />
@@ -467,10 +461,21 @@ export function LeadDetailView({ initialLead }: LeadDetailViewProps) {
           {/* 2. Enquiry & Shoot Details */}
           <Card className="shadow-xs">
             <CardHeader className="pb-3 border-b">
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <Camera className="h-4 w-4 text-primary" />
-                <span>Shoot & Requirement Specifications</span>
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <Camera className="h-4 w-4 text-primary" />
+                  <span>Shoot & Requirement Specifications</span>
+                </CardTitle>
+                <EditLeadDialog
+                  lead={lead}
+                  trigger={
+                    <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5 border-primary/30 text-primary hover:bg-primary/10">
+                      <Edit3 className="h-3.5 w-3.5" />
+                      <span>Edit Details</span>
+                    </Button>
+                  }
+                />
+              </div>
             </CardHeader>
             <CardContent className="p-4 grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs">
               <div>
@@ -481,6 +486,17 @@ export function LeadDetailView({ initialLead }: LeadDetailViewProps) {
                 <span className="text-muted-foreground block text-[11px]">Event Date</span>
                 <span className="font-semibold text-foreground text-sm">
                   {lead.event_date ? formatDate(lead.event_date) : "TBD"}
+                </span>
+              </div>
+              <div>
+                <span className="text-muted-foreground block text-[11px]">Event Timings</span>
+                <span className="font-semibold text-foreground text-sm flex items-center gap-1">
+                  <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  {lead.event_start_time || lead.event_end_time ? (
+                    `${lead.event_start_time || "TBD"} - ${lead.event_end_time || "TBD"}`
+                  ) : (
+                    "Not specified"
+                  )}
                 </span>
               </div>
               <div>
@@ -496,6 +512,12 @@ export function LeadDetailView({ initialLead }: LeadDetailViewProps) {
                 </span>
               </div>
               <div>
+                <span className="text-muted-foreground block text-[11px]">Target Margin</span>
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400 text-sm">
+                  {lead.profit_percentage !== undefined && lead.profit_percentage !== null ? `${lead.profit_percentage}%` : "30%"}
+                </span>
+              </div>
+              <div>
                 <span className="text-muted-foreground block text-[11px]">Enquiry Date</span>
                 <span className="font-semibold text-foreground text-sm">
                   {formatDate(lead.created_at)}
@@ -506,6 +528,36 @@ export function LeadDetailView({ initialLead }: LeadDetailViewProps) {
                 <span className="font-semibold text-foreground text-sm">
                   {lead.follow_up_count} interactions
                 </span>
+              </div>
+
+              {/* Requirements Chips */}
+              <div className="col-span-full pt-3 border-t space-y-2">
+                <span className="text-muted-foreground font-semibold block text-[11px]">Selected Event Requirements:</span>
+                {Array.isArray(lead.requirements) && lead.requirements.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {lead.requirements.map((req, idx) => (
+                      <Badge
+                        key={idx}
+                        variant="secondary"
+                        className="text-xs px-2.5 py-0.5 bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 font-medium"
+                      >
+                        {req}
+                      </Badge>
+                    ))}
+                    {lead.other_requirement && (
+                      <Badge
+                        variant="outline"
+                        className="text-xs px-2.5 py-0.5 border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-50/50 dark:bg-amber-950/30 font-medium"
+                      >
+                        Custom: {lead.other_requirement}
+                      </Badge>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground text-xs italic">
+                    No specific requirements selected yet. Click "Edit Details" above to select event services.
+                  </p>
+                )}
               </div>
 
               {lead.enquiry_message && (
@@ -519,85 +571,18 @@ export function LeadDetailView({ initialLead }: LeadDetailViewProps) {
             </CardContent>
           </Card>
 
-          {/* 3. Deliverables & Production Package Checklist */}
-          <Card className="shadow-xs">
-            <CardHeader className="pb-3 border-b">
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <Film className="h-4 w-4 text-primary" />
-                <span>Deliverables & Production Scope</span>
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Select contracted media deliverables for photography and cinematography
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-              <label className="flex items-center gap-2 p-2.5 border rounded-lg hover:bg-muted/30 cursor-pointer transition-colors">
-                <Checkbox
-                  checked={deliverables.candidStills}
-                  onCheckedChange={() => toggleDeliverable("candidStills")}
-                />
-                <div className="flex flex-col">
-                  <span className="font-semibold text-foreground">Candid Wedding Photography</span>
-                  <span className="text-[10px] text-muted-foreground">High-res edited stills with color grade</span>
-                </div>
-              </label>
+          {/* 3. Deliverables & Production Scope Manager */}
+          <DeliverablesEditor
+            leadId={lead.id}
+            initialDeliverables={lead.deliverables || []}
+          />
 
-              <label className="flex items-center gap-2 p-2.5 border rounded-lg hover:bg-muted/30 cursor-pointer transition-colors">
-                <Checkbox
-                  checked={deliverables.cinematicFilm}
-                  onCheckedChange={() => toggleDeliverable("cinematicFilm")}
-                />
-                <div className="flex flex-col">
-                  <span className="font-semibold text-foreground">Cinematic 4K Wedding Trailer</span>
-                  <span className="text-[10px] text-muted-foreground">3-5 min highlight reel with licensed music</span>
-                </div>
-              </label>
-
-              <label className="flex items-center gap-2 p-2.5 border rounded-lg hover:bg-muted/30 cursor-pointer transition-colors">
-                <Checkbox
-                  checked={deliverables.traditionalCoverage}
-                  onCheckedChange={() => toggleDeliverable("traditionalCoverage")}
-                />
-                <div className="flex flex-col">
-                  <span className="font-semibold text-foreground">Traditional Full Coverage</span>
-                  <span className="text-[10px] text-muted-foreground">60-90 min ceremony documentation</span>
-                </div>
-              </label>
-
-              <label className="flex items-center gap-2 p-2.5 border rounded-lg hover:bg-muted/30 cursor-pointer transition-colors">
-                <Checkbox
-                  checked={deliverables.droneCinematography}
-                  onCheckedChange={() => toggleDeliverable("droneCinematography")}
-                />
-                <div className="flex flex-col">
-                  <span className="font-semibold text-foreground">Aerial Drone 4K Cinematography</span>
-                  <span className="text-[10px] text-muted-foreground">Licensed drone pilot aerial footage</span>
-                </div>
-              </label>
-
-              <label className="flex items-center gap-2 p-2.5 border rounded-lg hover:bg-muted/30 cursor-pointer transition-colors">
-                <Checkbox
-                  checked={deliverables.luxuryAlbum}
-                  onCheckedChange={() => toggleDeliverable("luxuryAlbum")}
-                />
-                <div className="flex flex-col">
-                  <span className="font-semibold text-foreground">Luxury Hardbound Photo Album</span>
-                  <span className="text-[10px] text-muted-foreground">40-page flush mount silk album</span>
-                </div>
-              </label>
-
-              <label className="flex items-center gap-2 p-2.5 border rounded-lg hover:bg-muted/30 cursor-pointer transition-colors">
-                <Checkbox
-                  checked={deliverables.rawFootageDrive}
-                  onCheckedChange={() => toggleDeliverable("rawFootageDrive")}
-                />
-                <div className="flex flex-col">
-                  <span className="font-semibold text-foreground">Raw Footage SSD Handover</span>
-                  <span className="text-[10px] text-muted-foreground">Master files on studio SSD drive</span>
-                </div>
-              </label>
-            </CardContent>
-          </Card>
+          {/* 4. Lead Expense & Profit Calculator */}
+          <LeadExpenseCalculator
+            leadId={lead.id}
+            initialExpenses={lead.expenses || []}
+            initialProfitPercentage={lead.profit_percentage ?? 30}
+          />
 
           {/* 4. Quotations Section */}
           <Card className="shadow-xs">
@@ -678,7 +663,13 @@ export function LeadDetailView({ initialLead }: LeadDetailViewProps) {
                       Confirmed status: {booking.booking_status}
                     </CardDescription>
                   </div>
-                  <Badge variant="success">{booking.booking_status}</Badge>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {((booking.remaining_amount || 0) > 0 || !booking.advance_paid_at) && (
+                      <WhatsAppPaymentReminderDialog booking={booking} profile={profile} />
+                    )}
+                    <RecordPaymentDialog booking={booking} leadId={lead.id} />
+                    <Badge variant="success">{booking.booking_status}</Badge>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="p-4 space-y-4">
@@ -745,6 +736,9 @@ export function LeadDetailView({ initialLead }: LeadDetailViewProps) {
               </CardContent>
             </Card>
           )}
+
+          {/* Post-Production Delivery Pipeline & Cloud Galleries */}
+          <PostProductionTracker lead={lead} profile={profile} />
 
           {/* 6. Communication Log */}
           <Card className="shadow-xs">

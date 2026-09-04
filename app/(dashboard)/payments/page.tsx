@@ -1,8 +1,8 @@
 import * as React from "react";
 import Link from "next/link";
-import { CreditCard, IndianRupee, ArrowUpRight, CheckCircle2, Clock } from "lucide-react";
+import { CreditCard, IndianRupee, ArrowUpRight, CheckCircle2, Clock, Receipt } from "lucide-react";
 
-import { getBookings, getPayments } from "@/lib/crm-service";
+import { getBookings, getPayments, getProfile } from "@/lib/crm-service";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,12 +16,16 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+import { RecordPaymentDialog } from "@/components/payments/record-payment-dialog";
+import { WhatsAppPaymentReminderDialog } from "@/components/payments/whatsapp-payment-reminder-dialog";
+
 export const revalidate = 0;
 
 export default async function PaymentsPage() {
-  const [bookings, payments] = await Promise.all([
+  const [bookings, payments, profile] = await Promise.all([
     getBookings(),
     getPayments(),
+    getProfile(),
   ]);
 
   const totalContract = bookings.reduce((sum, b) => sum + (b.total_amount || 0), 0);
@@ -34,13 +38,16 @@ export default async function PaymentsPage() {
   return (
     <div className="space-y-6 pb-12">
       {/* Header */}
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-bold tracking-tight text-foreground md:text-3xl">
-          Payments & Advance Ledger
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Track advances, payment milestones, settlement schedules, and cash receipts.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground md:text-3xl">
+            Payments & Advance Ledger
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Track advances, payment milestones, settlement schedules, and cash receipts.
+          </p>
+        </div>
+        <RecordPaymentDialog bookings={bookings} />
       </div>
 
       {/* Financial Overview KPI Cards */}
@@ -143,12 +150,27 @@ export default async function PaymentsPage() {
                       {b.final_payment_due_date ? formatDate(b.final_payment_due_date) : "On Delivery"}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" asChild className="h-7 text-xs">
-                        <Link href={`/crm/${b.lead_id}`}>
-                          <span>Record Payment</span>
-                          <ArrowUpRight className="h-3 w-3 ml-1" />
-                        </Link>
-                      </Button>
+                      <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                        {((b.remaining_amount || 0) > 0 || !b.advance_paid_at) && (
+                          <WhatsAppPaymentReminderDialog booking={b} profile={profile} />
+                        )}
+                        <RecordPaymentDialog
+                          booking={b}
+                          triggerButton={
+                            <Button size="sm" variant="outline" className="h-7 text-[11px] gap-1 bg-emerald-50/50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-100/60">
+                              <Receipt className="h-3 w-3 text-emerald-600" />
+                              <span>Record</span>
+                            </Button>
+                          }
+                        />
+                        {b.lead_id && (
+                          <Button variant="ghost" size="sm" asChild className="h-7 text-[11px] px-2 text-muted-foreground hover:text-foreground">
+                            <Link href={`/crm/${b.lead_id}`} title="View Lead CRM File">
+                              <ArrowUpRight className="h-3.5 w-3.5" />
+                            </Link>
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))

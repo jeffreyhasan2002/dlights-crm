@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import {
   createLeadAction,
+  updateLeadAction,
   updateLeadStatusAction,
   updateContactStatusAction,
   updateNextActionAction,
@@ -24,8 +25,22 @@ import {
   deletePaymentAction,
   deleteFollowUpAction,
   deleteEventAction,
+  createLeadDeliverableAction,
+  updateLeadDeliverableAction,
+  deleteLeadDeliverableAction,
+  batchSaveLeadDeliverablesAction,
+  createLeadExpenseAction,
+  updateLeadExpenseAction,
+  deleteLeadExpenseAction,
+  updateLeadProfitPercentageAction,
+  batchSaveLeadExpensesAction,
+  updateLeadPostProductionAction,
+  createExpenseCalculationAction,
+  updateExpenseCalculationAction,
+  deleteExpenseCalculationAction,
+  duplicateExpenseCalculationAction,
 } from "./crm-service";
-import { EventType, LeadStatus, ContactStatus, RejectionReason } from "@/types/crm";
+import { EventType, LeadStatus, ContactStatus, RejectionReason, LeadDeliverable, LeadExpense, PostProductionStatus } from "@/types/crm";
 
 export async function createLeadServerAction(formData: {
   clientName: string;
@@ -34,15 +49,53 @@ export async function createLeadServerAction(formData: {
   email?: string;
   eventType: EventType;
   eventDate?: string;
+  eventStartTime?: string;
+  eventEndTime?: string;
   location?: string;
   budget?: number;
   source?: string;
   enquiryMessage?: string;
+  requirements?: string[];
+  otherRequirement?: string;
+  profitPercentage?: number;
 }) {
   const res = await createLeadAction(formData);
   revalidatePath("/dashboard");
   revalidatePath("/crm");
   revalidatePath("/clients");
+  return res;
+}
+
+export async function updateLeadServerAction(
+  leadId: string,
+  formData: {
+    clientName?: string;
+    phone?: string;
+    whatsapp?: string;
+    email?: string;
+    location?: string;
+    eventType?: EventType;
+    eventDate?: string;
+    eventStartTime?: string;
+    eventEndTime?: string;
+    budget?: number;
+    source?: string;
+    enquiryMessage?: string;
+    requirements?: string[];
+    otherRequirement?: string;
+    profitPercentage?: number;
+    leadStatus?: LeadStatus;
+    contactStatus?: ContactStatus;
+    nextAction?: string;
+    nextActionDueAt?: string;
+  }
+) {
+  const res = await updateLeadAction(leadId, formData);
+  revalidatePath("/dashboard");
+  revalidatePath("/crm");
+  revalidatePath(`/crm/${leadId}`);
+  revalidatePath("/clients");
+  revalidatePath("/expense-calculator");
   return res;
 }
 
@@ -226,6 +279,7 @@ export async function deleteLeadServerAction(leadId: string) {
   revalidatePath("/clients");
   revalidatePath("/events");
   revalidatePath("/payments");
+  revalidatePath("/expense-calculator");
   return res;
 }
 
@@ -236,6 +290,7 @@ export async function deleteClientServerAction(clientId: string) {
   revalidatePath("/clients");
   revalidatePath("/events");
   revalidatePath("/payments");
+  revalidatePath("/expense-calculator");
   return res;
 }
 
@@ -269,5 +324,167 @@ export async function deleteEventServerAction(eventId: string, leadId?: string) 
   revalidatePath("/dashboard");
   revalidatePath("/events");
   if (leadId) revalidatePath(`/crm/${leadId}`);
+  return res;
+}
+
+// ----------------------------------------------------------------------------
+// DELIVERABLES SERVER ACTIONS
+// ----------------------------------------------------------------------------
+
+export async function createLeadDeliverableServerAction(data: {
+  leadId: string;
+  name: string;
+  type?: string;
+  quantity?: number;
+  notes?: string;
+  isCustom?: boolean;
+}) {
+  const res = await createLeadDeliverableAction(data);
+  revalidatePath(`/crm/${data.leadId}`);
+  return res;
+}
+
+export async function updateLeadDeliverableServerAction(
+  id: string,
+  leadId: string,
+  data: Partial<LeadDeliverable>
+) {
+  const res = await updateLeadDeliverableAction(id, data);
+  revalidatePath(`/crm/${leadId}`);
+  return res;
+}
+
+export async function deleteLeadDeliverableServerAction(id: string, leadId: string) {
+  const res = await deleteLeadDeliverableAction(id);
+  revalidatePath(`/crm/${leadId}`);
+  return res;
+}
+
+export async function batchSaveLeadDeliverablesServerAction(
+  leadId: string,
+  deliverables: { name: string; type?: string; quantity: number; notes?: string; is_custom?: boolean }[]
+) {
+  const res = await batchSaveLeadDeliverablesAction(leadId, deliverables);
+  revalidatePath(`/crm/${leadId}`);
+  return res;
+}
+
+// ----------------------------------------------------------------------------
+// EXPENSES SERVER ACTIONS
+// ----------------------------------------------------------------------------
+
+export async function createLeadExpenseServerAction(data: {
+  leadId: string;
+  expenseName: string;
+  expenseCategory: string;
+  amount: number;
+  notes?: string;
+  isCustom?: boolean;
+}) {
+  const res = await createLeadExpenseAction(data);
+  revalidatePath(`/crm/${data.leadId}`);
+  revalidatePath("/expense-calculator");
+  return res;
+}
+
+export async function updateLeadExpenseServerAction(
+  id: string,
+  leadId: string,
+  data: Partial<LeadExpense>
+) {
+  const res = await updateLeadExpenseAction(id, data);
+  revalidatePath(`/crm/${leadId}`);
+  revalidatePath("/expense-calculator");
+  return res;
+}
+
+export async function deleteLeadExpenseServerAction(id: string, leadId: string) {
+  const res = await deleteLeadExpenseAction(id);
+  revalidatePath(`/crm/${leadId}`);
+  revalidatePath("/expense-calculator");
+  return res;
+}
+
+export async function updateLeadProfitPercentageServerAction(leadId: string, profitPercentage: number) {
+  const res = await updateLeadProfitPercentageAction(leadId, profitPercentage);
+  revalidatePath(`/crm/${leadId}`);
+  revalidatePath("/expense-calculator");
+  return res;
+}
+
+export async function batchSaveLeadExpensesServerAction(
+  leadId: string,
+  expenses: { expense_name: string; expense_category: string; amount: number; notes?: string; is_custom?: boolean }[],
+  profitPercentage?: number
+) {
+  const res = await batchSaveLeadExpensesAction(leadId, expenses, profitPercentage);
+  revalidatePath(`/crm/${leadId}`);
+  revalidatePath("/expense-calculator");
+  return res;
+}
+
+// ----------------------------------------------------------------------------
+// STANDALONE EXPENSE CALCULATIONS SERVER ACTIONS
+// ----------------------------------------------------------------------------
+
+export async function createExpenseCalculationServerAction(data: {
+  name: string;
+  clientName?: string;
+  eventType?: string;
+  leadId?: string | null;
+  profitPercentage?: number;
+  notes?: string;
+  items?: { expense_name: string; expense_category: string; amount: number; notes?: string; is_custom?: boolean }[];
+}) {
+  const res = await createExpenseCalculationAction(data);
+  revalidatePath("/expense-calculator");
+  if (data.leadId) revalidatePath(`/crm/${data.leadId}`);
+  return res;
+}
+
+export async function updateExpenseCalculationServerAction(
+  id: string,
+  data: {
+    name?: string;
+    clientName?: string;
+    eventType?: string;
+    leadId?: string | null;
+    profitPercentage?: number;
+    notes?: string;
+    items?: { id?: string; expense_name: string; expense_category: string; amount: number; notes?: string; is_custom?: boolean }[];
+  }
+) {
+  const res = await updateExpenseCalculationAction(id, data);
+  revalidatePath("/expense-calculator");
+  if (data.leadId) revalidatePath(`/crm/${data.leadId}`);
+  return res;
+}
+
+export async function deleteExpenseCalculationServerAction(id: string) {
+  const res = await deleteExpenseCalculationAction(id);
+  revalidatePath("/expense-calculator");
+  return res;
+}
+
+export async function duplicateExpenseCalculationServerAction(id: string) {
+  const res = await duplicateExpenseCalculationAction(id);
+  revalidatePath("/expense-calculator");
+  return res;
+}
+
+export async function updateLeadPostProductionServerAction(
+  leadId: string,
+  data: {
+    status?: PostProductionStatus;
+    rawStorageLink?: string;
+    selectionGalleryLink?: string;
+    finalVideoLink?: string;
+    galleryPasswordPin?: string;
+  }
+) {
+  const res = await updateLeadPostProductionAction(leadId, data);
+  revalidatePath("/dashboard");
+  revalidatePath("/crm");
+  revalidatePath(`/crm/${leadId}`);
   return res;
 }

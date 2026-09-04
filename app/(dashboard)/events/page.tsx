@@ -2,26 +2,33 @@ import * as React from "react";
 import Link from "next/link";
 import { Calendar as CalendarIcon, MapPin, Clock, ArrowUpRight, CheckCircle2 } from "lucide-react";
 
-import { getEvents } from "@/lib/crm-service";
+import { getEvents, getClients } from "@/lib/crm-service";
 import { formatDate } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { EventSchedulerDialog, CalendarExportButtons } from "@/components/events/event-scheduler-dialog";
 
 export const revalidate = 0;
 
 export default async function EventsPage() {
-  const events = await getEvents();
+  const [events, clients] = await Promise.all([
+    getEvents(),
+    getClients(),
+  ]);
 
   return (
     <div className="space-y-6 pb-12">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-bold tracking-tight text-foreground md:text-3xl">
-          Events & Shoot Schedule
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Production shoots, wedding ceremonies, destination travel, and crew assignments.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground md:text-3xl">
+            Events & Shoot Schedule
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Production shoots, wedding ceremonies, destination travel, and crew assignments.
+          </p>
+        </div>
+        <EventSchedulerDialog clients={clients} />
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -76,16 +83,17 @@ export default async function EventsPage() {
                   </div>
                 )}
 
-                {e.lead_id && (
-                  <div className="pt-2 border-t flex justify-end">
-                    <Button size="sm" variant="ghost" className="h-7 text-xs" asChild>
-                      <Link href={`/crm/${e.lead_id}`}>
-                        <span>View Client Details</span>
+                <div className="pt-2 border-t flex items-center justify-between gap-2">
+                  <CalendarExportButtons event={e} />
+                  {e.lead_id && (
+                    <Button size="sm" variant="ghost" className="h-7 text-xs px-2 text-muted-foreground hover:text-foreground" asChild>
+                      <Link href={`/crm/${e.lead_id}`} title="View Lead CRM Record">
+                        <span>Details</span>
                         <ArrowUpRight className="h-3 w-3 ml-1" />
                       </Link>
                     </Button>
-                  </div>
-                )}
+                  )}
+                </div>
               </CardContent>
             </Card>
           ))

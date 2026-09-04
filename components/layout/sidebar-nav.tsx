@@ -18,6 +18,7 @@ import {
   Inbox,
   Briefcase,
   ChevronDown,
+  Calculator,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -34,6 +35,7 @@ export function SidebarNav() {
   const isClientsRoute = pathname.startsWith("/clients");
   const isEventsRoute = pathname.startsWith("/events");
   const isPaymentsRoute = pathname.startsWith("/payments");
+  const isExpenseCalculatorRoute = pathname.startsWith("/expense-calculator");
   const isSettingsRoute = pathname.startsWith("/settings");
 
   return (
@@ -87,19 +89,19 @@ export function SidebarNav() {
             </Link>
 
             <Link
-              href="/crm?view=kanban"
+              href="/crm?view=tracking"
               className={cn(
                 "flex items-center justify-between rounded-lg px-3 py-1.5 text-xs font-medium transition-colors hover:bg-muted",
-                isCrmRoute && currentView === "kanban"
+                isCrmRoute && (currentView === "tracking" || currentView === "kanban")
                   ? "bg-muted text-foreground font-semibold"
                   : "text-muted-foreground"
               )}
             >
               <div className="flex items-center gap-2.5">
                 <Kanban className="h-3.5 w-3.5" />
-                <span>Kanban Board</span>
+                <span>Client Tracking Board</span>
               </div>
-              <Badge variant="outline" className="text-[9px] px-1.5 py-0">Drag</Badge>
+              <Badge variant="outline" className="text-[9px] px-1.5 py-0">Pipeline</Badge>
             </Link>
 
             <Link
@@ -219,6 +221,17 @@ export function SidebarNav() {
           >
             <CreditCard className="h-4 w-4 text-emerald-600" />
             <span>Payments & Advances</span>
+          </Link>
+
+          <Link
+            href="/expense-calculator"
+            className={cn(
+              "flex items-center gap-3 rounded-lg px-3 py-2 font-medium transition-colors hover:bg-muted",
+              isExpenseCalculatorRoute ? "bg-muted text-foreground font-semibold" : "text-muted-foreground"
+            )}
+          >
+            <Calculator className="h-4 w-4 text-amber-500" />
+            <span>Expense Calculator</span>
           </Link>
         </div>
       </div>

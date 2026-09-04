@@ -28,6 +28,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { SearchDialog } from "@/components/layout/search-dialog";
 import { NewEnquiryDialog } from "@/components/forms/new-enquiry-dialog";
+import { CloudSyncBadge } from "@/components/layout/cloud-sync-badge";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import type { Profile, StudioNotification } from "@/types/crm";
@@ -84,6 +85,9 @@ export function Header({ user, profile, notifications = [] }: HeaderProps) {
       </div>
 
       <div className="ml-auto flex items-center gap-2">
+        {/* Live Database Sync Indicator */}
+        <CloudSyncBadge />
+
         {/* Quick New Enquiry Action */}
         <NewEnquiryDialog />
 

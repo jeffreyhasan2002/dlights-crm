@@ -99,6 +99,13 @@ export function DashboardQuickActions({ leads, bookings }: DashboardQuickActions
   const [followUpMethod, setFollowUpMethod] = useState<ContactMethod>("WhatsApp");
   const [followUpNotes, setFollowUpNotes] = useState<string>("");
 
+  React.useEffect(() => {
+    if (!selectedLeadId && leads.length > 0) setSelectedLeadId(leads[0].id);
+    if (!eventLeadId && leads.length > 0) setEventLeadId(leads[0].id);
+    if (!followUpLeadId && leads.length > 0) setFollowUpLeadId(leads[0].id);
+    if (!selectedBookingId && bookings.length > 0) setSelectedBookingId(bookings[0].id);
+  }, [leads, bookings]);
+
   // Handlers
   const handleCreateQuotation = async (e: React.FormEvent) => {
     e.preventDefault();

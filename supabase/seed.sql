@@ -322,7 +322,61 @@ BEGIN
     INSERT INTO public.activities (id, lead_id, client_id, owner_id, activity_type, title, description, contact_method)
     VALUES (gen_random_uuid(), v_l2, v_c2, v_user_id, 'QUOTATION_SENT', 'Quotation Q-2026-084 Sent', 'Sent formal proposal of ₹2,80,000.', 'Email');
 
-    INSERT INTO public.activities (id, lead_id, client_id, owner_id, activity_type, title, description, contact_method)
-    VALUES (gen_random_uuid(), v_l3, v_c3, v_user_id, 'NEGOTIATION_STARTED', 'Price & Deliverables Negotiation', 'Client requested complimentary drone aerials for Alibaug.', 'WhatsApp');
+    -- Insert Requirement Options Seed Data
+    INSERT INTO public.requirement_options (name, slug, category, sort_order)
+    VALUES
+        ('Traditional Photography', 'traditional_photography', 'Photography', 1),
+        ('Traditional Videography', 'traditional_videography', 'Videography', 2),
+        ('Candid Photography', 'candid_photography', 'Photography', 3),
+        ('Candid Videography', 'candid_videography', 'Videography', 4),
+        ('Cinematic Video', 'cinematic_video', 'Videography', 5),
+        ('Pre-Wedding Shoot', 'pre_wedding_shoot', 'Events', 6),
+        ('Engagement', 'engagement', 'Events', 7),
+        ('Thaali Ponnurukku', 'thaali_ponnurukku', 'Events', 8),
+        ('Nalangu', 'nalangu', 'Events', 9),
+        ('Haldi', 'haldi', 'Events', 10),
+        ('Sangeet', 'sangeet', 'Events', 11),
+        ('Mehndi', 'mehndi', 'Events', 12),
+        ('Thala Kalyanam', 'thala_kalyanam', 'Events', 13),
+        ('Wedding Day', 'wedding_day', 'Events', 14),
+        ('Maruveedu', 'maruveedu', 'Events', 15),
+        ('Reception', 'reception', 'Events', 16),
+        ('Maternity', 'maternity', 'Shoots', 17),
+        ('Baptism', 'baptism', 'Shoots', 18),
+        ('LED Wall', 'led_wall', 'Production', 19),
+        ('Live Videographer', 'live_videographer', 'Production', 20),
+        ('Album', 'album', 'Deliverables', 21),
+        ('Video Editing', 'video_editing', 'Deliverables', 22),
+        ('Highlights', 'highlights', 'Deliverables', 23),
+        ('Calendar & Pendrive Box', 'calendar_pendrive_box', 'Deliverables', 24),
+        ('Frame', 'frame', 'Deliverables', 25),
+        ('Other', 'other', 'Custom', 26)
+    ON CONFLICT (name) DO NOTHING;
+
+    -- Insert Expense Categories Seed Data
+    INSERT INTO public.expense_categories (name, slug, category, sort_order)
+    VALUES
+        ('Pre-Wedding Shoot', 'pre_wedding_shoot', 'Events', 1),
+        ('Engagement', 'engagement', 'Events', 2),
+        ('Thaali Ponnurukku', 'thaali_ponnurukku', 'Events', 3),
+        ('Nalangu', 'nalangu', 'Events', 4),
+        ('Haldi, Sangeet, Mehndi', 'haldi_sangeet_mehndi', 'Events', 5),
+        ('Thala Kalyanam', 'thala_kalyanam', 'Events', 6),
+        ('Wedding Day', 'wedding_day', 'Events', 7),
+        ('Maruveedu', 'maruveedu', 'Events', 8),
+        ('Nagercoil Reception', 'nagercoil_reception', 'Events', 9),
+        ('LED Wall', 'led_wall', 'Production', 10),
+        ('Live Videographer', 'live_videographer', 'Production', 11),
+        ('Album Printing', 'album_printing', 'Post-Production', 12),
+        ('Album Design', 'album_design', 'Post-Production', 13),
+        ('Video Editing', 'video_editing', 'Post-Production', 14),
+        ('Highlights', 'highlights', 'Post-Production', 15),
+        ('Calendar & Pendrive Box', 'calendar_pendrive_box', 'Deliverables', 16),
+        ('Frame', 'frame', 'Deliverables', 17),
+        ('Office Rent', 'office_rent', 'Overhead', 18),
+        ('Assistant Payments', 'assistant_payments', 'Labor', 19),
+        ('Petrol', 'petrol', 'Travel', 20),
+        ('Other', 'other', 'Custom', 21)
+    ON CONFLICT (name) DO NOTHING;
 
 END \$\$;

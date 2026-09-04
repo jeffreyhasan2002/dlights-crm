@@ -20,6 +20,14 @@ import {
   EventType,
   PaymentType,
   PaymentMethod,
+  LeadDeliverable,
+  LeadExpense,
+  ExpenseCalculation,
+  ExpenseCalculationItem,
+  DEFAULT_DELIVERABLES,
+  DEFAULT_REQUIREMENTS,
+  DEFAULT_EXPENSE_CATEGORIES,
+  PostProductionStatus,
 } from "@/types/crm";
 
 // In-memory fallback arrays for offline/preview mode
@@ -33,6 +41,10 @@ let memoryFollowUps: FollowUp[] = [];
 let memoryCommunications: Communication[] = [];
 let memoryActivities: Activity[] = [];
 let memoryNotes: Note[] = [];
+let memoryDeliverables: LeadDeliverable[] = [];
+let memoryExpenses: LeadExpense[] = [];
+let memoryExpenseCalculations: ExpenseCalculation[] = [];
+let memoryExpenseCalculationItems: ExpenseCalculationItem[] = [];
 
 let memoryProfile: Profile = {
   id: "00000000-0000-0000-0000-000000000001",
@@ -73,6 +85,11 @@ async function getAuthenticatedOwnerId(): Promise<string> {
     const { data: authData } = await supabase.auth.getUser();
     if (authData?.user?.id) {
       return authData.user.id;
+    }
+    // Match the active owner ID of existing studio records
+    const { data: leadOwner } = await supabase.from("leads").select("owner_id").limit(1).maybeSingle();
+    if (leadOwner?.owner_id) {
+      return leadOwner.owner_id;
     }
     const { data: dbProfile } = await supabase.from("profiles").select("id").limit(1).maybeSingle();
     if (dbProfile?.id) {
@@ -162,6 +179,8 @@ export const getLeads = cache(async (filters: GetLeadsFilters = {}): Promise<Lea
   let communicationsData: Communication[] = memoryCommunications;
   let activitiesData: Activity[] = memoryActivities;
   let notesData: Note[] = memoryNotes;
+  let deliverablesData: LeadDeliverable[] = memoryDeliverables;
+  let expensesData: LeadExpense[] = memoryExpenses;
 
   if (live) {
     try {
@@ -175,10 +194,12 @@ export const getLeads = cache(async (filters: GetLeadsFilters = {}): Promise<Lea
         { data: comData },
         { data: aData },
         { data: nData },
+        { data: delData },
+        { data: expData },
       ] = await Promise.all([
         supabase
           .from("leads")
-          .select("id, client_id, owner_id, event_type, event_date, location, budget, source, enquiry_message, lead_status, contact_status, last_contacted_at, next_follow_up_at, follow_up_count, next_action, next_action_due_at, created_at, updated_at")
+          .select("id, client_id, owner_id, event_type, event_date, event_start_time, event_end_time, location, budget, source, enquiry_message, requirements, other_requirement, profit_percentage, lead_status, contact_status, last_contacted_at, next_follow_up_at, follow_up_count, next_action, next_action_due_at, created_at, updated_at")
           .order("created_at", { ascending: false }),
         supabase
           .from("clients")
@@ -203,6 +224,14 @@ export const getLeads = cache(async (filters: GetLeadsFilters = {}): Promise<Lea
           .from("notes")
           .select("id, owner_id, lead_id, content, created_at, updated_at")
           .order("created_at", { ascending: false }),
+        supabase
+          .from("lead_deliverables")
+          .select("id, lead_id, owner_id, name, type, quantity, notes, is_custom, created_at, updated_at")
+          .order("created_at", { ascending: true }),
+        supabase
+          .from("lead_expenses")
+          .select("id, lead_id, owner_id, expense_name, expense_category, amount, notes, is_custom, created_at, updated_at")
+          .order("created_at", { ascending: true }),
       ]);
 
       if (lData) leadsData = lData as any[];
@@ -213,6 +242,8 @@ export const getLeads = cache(async (filters: GetLeadsFilters = {}): Promise<Lea
       if (comData) communicationsData = comData as any[];
       if (aData) activitiesData = aData as any[];
       if (nData) notesData = nData as any[];
+      if (delData) deliverablesData = delData as any[];
+      if (expData) expensesData = expData as any[];
     } catch (err) {
       console.error("Error fetching leads from Supabase:", err);
     }
@@ -274,6 +305,24 @@ export const getLeads = cache(async (filters: GetLeadsFilters = {}): Promise<Lea
     }
   }
 
+  const deliverableMap = new Map<string, LeadDeliverable[]>();
+  for (const d of deliverablesData) {
+    if (d.lead_id) {
+      const arr = deliverableMap.get(d.lead_id) || [];
+      arr.push(d);
+      deliverableMap.set(d.lead_id, arr);
+    }
+  }
+
+  const expenseMap = new Map<string, LeadExpense[]>();
+  for (const e of expensesData) {
+    if (e.lead_id) {
+      const arr = expenseMap.get(e.lead_id) || [];
+      arr.push(e);
+      expenseMap.set(e.lead_id, arr);
+    }
+  }
+
   let results: LeadWithDetails[] = leadsData.map((lead) => {
     const client = clientMap.get(lead.client_id) || {
       id: lead.client_id,
@@ -293,6 +342,8 @@ export const getLeads = cache(async (filters: GetLeadsFilters = {}): Promise<Lea
     const leadCommunications = communicationMap.get(lead.id) || [];
     const leadActivities = activityMap.get(lead.id) || [];
     const leadNotes = noteMap.get(lead.id) || [];
+    const leadDeliverables = deliverableMap.get(lead.id) || [];
+    const leadExpenses = expenseMap.get(lead.id) || [];
 
     if (lead.lead_status === "Accepted / Booked" && leadBookings.length === 0) {
       const totalAmount = Number(lead.budget) || 300000;
@@ -318,9 +369,24 @@ export const getLeads = cache(async (filters: GetLeadsFilters = {}): Promise<Lea
       ];
     }
 
+    let postProdData: any = {};
+    const postProdNote = leadNotes.find((n) => n.content?.startsWith("[POST_PRODUCTION]:"));
+    if (postProdNote) {
+      try {
+        postProdData = JSON.parse(postProdNote.content.replace("[POST_PRODUCTION]:", ""));
+      } catch {}
+    }
+
     return {
       ...lead,
+      requirements: Array.isArray(lead.requirements) ? lead.requirements : [],
+      profit_percentage: lead.profit_percentage ?? 30,
       source: (lead as any).source || (lead as any).lead_source || "Website",
+      post_production_status: (lead as any).post_production_status || postProdData.status || "Raw Footage Backup",
+      raw_storage_link: (lead as any).raw_storage_link || postProdData.rawStorageLink || null,
+      selection_gallery_link: (lead as any).selection_gallery_link || postProdData.selectionGalleryLink || null,
+      final_video_link: (lead as any).final_video_link || postProdData.finalVideoLink || null,
+      gallery_password_pin: (lead as any).gallery_password_pin || postProdData.galleryPasswordPin || null,
       client,
       quotations: leadQuotations,
       bookings: leadBookings,
@@ -328,6 +394,8 @@ export const getLeads = cache(async (filters: GetLeadsFilters = {}): Promise<Lea
       communications: leadCommunications,
       activities: leadActivities,
       notes: leadNotes,
+      deliverables: leadDeliverables,
+      expenses: leadExpenses,
     };
   });
 
@@ -370,7 +438,7 @@ export const getLeadById = cache(async (id: string): Promise<LeadWithDetails | n
       const supabase = await createServerSupabase();
       const { data: dbLead } = await supabase
         .from("leads")
-        .select("id, client_id, owner_id, event_type, event_date, location, budget, source, enquiry_message, lead_status, contact_status, last_contacted_at, next_follow_up_at, follow_up_count, next_action, next_action_due_at, created_at, updated_at")
+        .select("id, client_id, owner_id, event_type, event_date, event_start_time, event_end_time, location, budget, source, enquiry_message, requirements, other_requirement, profit_percentage, lead_status, contact_status, last_contacted_at, next_follow_up_at, follow_up_count, next_action, next_action_due_at, created_at, updated_at")
         .eq("id", id)
         .maybeSingle();
 
@@ -400,6 +468,8 @@ export const getLeadById = cache(async (id: string): Promise<LeadWithDetails | n
           { data: comData },
           { data: aData },
           { data: nData },
+          { data: delData },
+          { data: expData },
         ] = await Promise.all([
           supabase.from("quotations").select("id, owner_id, lead_id, quotation_number, amount, valid_until, status, sent_at, viewed_at, accepted_at, rejected_at, rejection_reason, rejection_reason_other, notes, created_at, updated_at").eq("lead_id", dbLead.id),
           supabase.from("bookings").select("id, owner_id, lead_id, client_id, booking_status, booking_date, confirmed_at, total_amount, advance_amount, advance_due_date, advance_paid_at, remaining_amount, final_payment_due_date, final_payment_paid_at, notes, created_at, updated_at").eq("lead_id", dbLead.id),
@@ -407,6 +477,8 @@ export const getLeadById = cache(async (id: string): Promise<LeadWithDetails | n
           supabase.from("communications").select("id, owner_id, lead_id, contact_method, direction, message, client_response, created_at").eq("lead_id", dbLead.id),
           supabase.from("activities").select("id, owner_id, lead_id, client_id, activity_type, title, description, contact_method, client_response, metadata, created_at").eq("lead_id", dbLead.id).order("created_at", { ascending: false }),
           supabase.from("notes").select("id, owner_id, lead_id, content, created_at, updated_at").eq("lead_id", dbLead.id).order("created_at", { ascending: false }),
+          supabase.from("lead_deliverables").select("id, lead_id, owner_id, name, type, quantity, notes, is_custom, created_at, updated_at").eq("lead_id", dbLead.id).order("created_at", { ascending: true }),
+          supabase.from("lead_expenses").select("id, lead_id, owner_id, expense_name, expense_category, amount, notes, is_custom, created_at, updated_at").eq("lead_id", dbLead.id).order("created_at", { ascending: true }),
         ]);
 
         let resolvedBookings: any[] = bData || [];
@@ -435,9 +507,24 @@ export const getLeadById = cache(async (id: string): Promise<LeadWithDetails | n
           ];
         }
 
+        let postProdData: any = {};
+        const postProdNote = ((nData as any) || []).find((n: any) => n.content?.startsWith("[POST_PRODUCTION]:"));
+        if (postProdNote) {
+          try {
+            postProdData = JSON.parse(postProdNote.content.replace("[POST_PRODUCTION]:", ""));
+          } catch {}
+        }
+
         return {
           ...dbLead,
+          requirements: Array.isArray(dbLead.requirements) ? dbLead.requirements : [],
+          profit_percentage: dbLead.profit_percentage ?? 30,
           source: dbLead.source || "Website",
+          post_production_status: (dbLead as any).post_production_status || postProdData.status || "Raw Footage Backup",
+          raw_storage_link: (dbLead as any).raw_storage_link || postProdData.rawStorageLink || null,
+          selection_gallery_link: (dbLead as any).selection_gallery_link || postProdData.selectionGalleryLink || null,
+          final_video_link: (dbLead as any).final_video_link || postProdData.finalVideoLink || null,
+          gallery_password_pin: (dbLead as any).gallery_password_pin || postProdData.galleryPasswordPin || null,
           client,
           quotations: (qData as any) || [],
           bookings: (resolvedBookings as any) || [],
@@ -445,6 +532,8 @@ export const getLeadById = cache(async (id: string): Promise<LeadWithDetails | n
           communications: (comData as any) || [],
           activities: (aData as any) || [],
           notes: (nData as any) || [],
+          deliverables: (delData as any) || [],
+          expenses: (expData as any) || [],
         };
       }
     } catch (err) {
@@ -586,10 +675,35 @@ export const getBookings = cache(async (): Promise<Booking[]> => {
     }
   }
 
+  const existingLeadIds = new Set(rawBookings.map((b) => b.lead_id).filter(Boolean));
+  for (const l of leads) {
+    if (l.lead_status === "Accepted / Booked" && !existingLeadIds.has(l.id)) {
+      const totalAmount = Number(l.budget) || 25000;
+      const advanceAmount = Math.round(totalAmount * 0.35);
+      const remainingAmount = totalAmount - advanceAmount;
+      rawBookings.push({
+        id: "b-" + l.id,
+        lead_id: l.id,
+        client_id: l.client_id,
+        owner_id: l.owner_id,
+        booking_status: "Booking Confirmed",
+        booking_date: (l.created_at || new Date().toISOString()).split("T")[0],
+        total_amount: totalAmount,
+        advance_amount: advanceAmount,
+        remaining_amount: remainingAmount,
+        advance_paid_at: null,
+        final_payment_due_date: l.event_date || null,
+        notes: "Confirmed booking contract.",
+        created_at: l.created_at || new Date().toISOString(),
+        updated_at: l.updated_at || new Date().toISOString(),
+      });
+    }
+  }
+
   return rawBookings.map((b) => ({
     ...b,
     lead: leadMap.get(b.lead_id),
-    client: clientMap.get(b.client_id),
+    client: clientMap.get(b.client_id) || (b.lead_id ? leadMap.get(b.lead_id)?.client : undefined),
     payments: paymentMap.get(b.id) || [],
   }));
 });
@@ -620,8 +734,8 @@ export const getPayments = cache(async (): Promise<Payment[]> => {
 });
 
 export const getEvents = cache(async (status?: string): Promise<CRMEvent[]> => {
-  const clients = await getClients();
-  let rawEvents: CRMEvent[] = memoryEvents;
+  const [clients, leads] = await Promise.all([getClients(), getLeads()]);
+  let rawEvents: CRMEvent[] = [...memoryEvents];
 
   const live = await isSupabaseLive();
   if (live) {
@@ -635,11 +749,34 @@ export const getEvents = cache(async (status?: string): Promise<CRMEvent[]> => {
   }
 
   const clientMap = new Map(clients.map((c) => [c.id, c]));
+  const existingEventLeadIds = new Set(rawEvents.map((e) => e.lead_id).filter(Boolean));
+
+  // Synthesize events for leads that have event_date
+  for (const l of leads) {
+    if (l.event_date && !existingEventLeadIds.has(l.id)) {
+      rawEvents.push({
+        id: "e-" + l.id,
+        lead_id: l.id,
+        client_id: l.client_id,
+        owner_id: l.owner_id,
+        event_name: `${l.client?.name || "Client"} - ${l.event_type} Shoot`,
+        event_type: l.event_type,
+        event_date: l.event_date,
+        start_time: l.event_start_time || "09:00",
+        end_time: l.event_end_time || "18:00",
+        location: l.location || "Studio / On Location",
+        notes: l.enquiry_message || `Scheduled ${l.event_type} shoot for ${l.client?.name || "client"}.`,
+        status: "Upcoming",
+        created_at: l.created_at || new Date().toISOString(),
+        updated_at: l.updated_at || new Date().toISOString(),
+      });
+    }
+  }
 
   let list = rawEvents.map((e) => ({
     ...e,
     event_name: (e as any).event_name || (e as any).title || "Shoot",
-    client: clientMap.get(e.client_id),
+    client: clientMap.get(e.client_id) || (e.lead_id ? leads.find((l) => l.id === e.lead_id)?.client : undefined),
   }));
 
   if (status && status !== "All") {
@@ -681,15 +818,22 @@ export async function createLeadAction(data: {
   email?: string;
   eventType: EventType;
   eventDate?: string;
+  eventStartTime?: string;
+  eventEndTime?: string;
   location?: string;
   budget?: number;
   source?: string;
   enquiryMessage?: string;
+  requirements?: string[];
+  otherRequirement?: string;
+  profitPercentage?: number;
 }) {
   const cId = "c-" + Date.now();
   const lId = "l-" + Date.now();
   const now = new Date().toISOString();
   const source = data.source || "Website";
+  const reqs = data.requirements || [];
+  const profitPct = data.profitPercentage ?? 30;
 
   const newClient: Client = {
     id: cId,
@@ -709,9 +853,14 @@ export async function createLeadAction(data: {
     owner_id: memoryProfile.id,
     event_type: data.eventType,
     event_date: data.eventDate || null,
+    event_start_time: data.eventStartTime || null,
+    event_end_time: data.eventEndTime || null,
     location: data.location || null,
     budget: data.budget ? Number(data.budget) : null,
     source: source as any,
+    requirements: reqs,
+    other_requirement: data.otherRequirement || null,
+    profit_percentage: profitPct,
     lead_status: "New Enquiry",
     contact_status: "Not Contacted",
     enquiry_message: data.enquiryMessage || null,
@@ -734,7 +883,7 @@ export async function createLeadAction(data: {
     description: `New enquiry received via ${source} for ${data.eventType}.`,
     contact_method: "WhatsApp",
     client_response: null,
-    metadata: { source, eventType: data.eventType },
+    metadata: { source, eventType: data.eventType, requirements: reqs },
     created_at: now,
   };
 
@@ -750,6 +899,41 @@ export async function createLeadAction(data: {
     created_at: now,
     updated_at: now,
   };
+
+  // Seed default deliverables based on requirements
+  const initialDeliverables: LeadDeliverable[] = [];
+  if (reqs.length > 0) {
+    for (const r of reqs) {
+      if (r === "Other" && data.otherRequirement) {
+        initialDeliverables.push({
+          id: "del-" + Math.random().toString(36).substring(2, 9),
+          lead_id: lId,
+          owner_id: memoryProfile.id,
+          name: data.otherRequirement,
+          type: "Custom",
+          quantity: 1,
+          notes: "Custom client requirement",
+          is_custom: true,
+          created_at: now,
+          updated_at: now,
+        });
+      } else {
+        const match = DEFAULT_DELIVERABLES.find((d) => d.name.toLowerCase() === r.toLowerCase());
+        initialDeliverables.push({
+          id: "del-" + Math.random().toString(36).substring(2, 9),
+          lead_id: lId,
+          owner_id: memoryProfile.id,
+          name: match ? match.name : r,
+          type: match ? match.type : "Requirement",
+          quantity: match ? match.defaultQty : 1,
+          notes: match ? match.notes : null,
+          is_custom: false,
+          created_at: now,
+          updated_at: now,
+        });
+      }
+    }
+  }
 
   const live = await isSupabaseLive();
   if (live) {
@@ -782,9 +966,14 @@ export async function createLeadAction(data: {
             owner_id: ownerId,
             event_type: data.eventType,
             event_date: data.eventDate || null,
+            event_start_time: data.eventStartTime || null,
+            event_end_time: data.eventEndTime || null,
             location: data.location || null,
             budget: data.budget ? Number(data.budget) : null,
             source: source,
+            requirements: reqs,
+            other_requirement: data.otherRequirement || null,
+            profit_percentage: profitPct,
             lead_status: "New Enquiry",
             contact_status: "Not Contacted",
             enquiry_message: data.enquiryMessage || null,
@@ -807,7 +996,7 @@ export async function createLeadAction(data: {
             activity_type: "ENQUIRY_CREATED",
             title: "New Enquiry Created",
             description: `New enquiry received via ${source} for ${data.eventType}.`,
-            metadata: { source, eventType: data.eventType },
+            metadata: { source, eventType: data.eventType, requirements: reqs },
           });
 
           await supabase.from("follow_ups").insert({
@@ -817,6 +1006,26 @@ export async function createLeadAction(data: {
             contact_method: "WhatsApp",
             notes: "Follow up on initial enquiry & send rate card",
           });
+
+          // Insert initial deliverables if any
+          if (initialDeliverables.length > 0) {
+            const dbDeliverables = initialDeliverables.map((d) => ({
+              lead_id: dbLead.id,
+              owner_id: ownerId,
+              name: d.name,
+              type: d.type,
+              quantity: d.quantity,
+              notes: d.notes,
+              is_custom: d.is_custom,
+            }));
+            const { data: insertedDels } = await supabase
+              .from("lead_deliverables")
+              .insert(dbDeliverables)
+              .select();
+            if (insertedDels) {
+              memoryDeliverables.unshift(...insertedDels);
+            }
+          }
 
           // Sync into memory arrays
           memoryClients.unshift(dbClient);
@@ -835,8 +1044,242 @@ export async function createLeadAction(data: {
   memoryLeads.unshift(newLead);
   memoryActivities.unshift(newActivity);
   memoryFollowUps.unshift(initialFollowUp);
+  if (initialDeliverables.length > 0) {
+    memoryDeliverables.unshift(...initialDeliverables);
+  }
 
   return { success: true, lead: newLead, client: newClient, leadId: lId };
+}
+
+export async function updateLeadAction(leadId: string, data: {
+  clientName?: string;
+  phone?: string;
+  whatsapp?: string;
+  email?: string;
+  location?: string;
+  eventType?: EventType;
+  eventDate?: string;
+  eventStartTime?: string;
+  eventEndTime?: string;
+  budget?: number;
+  source?: string;
+  enquiryMessage?: string;
+  requirements?: string[];
+  otherRequirement?: string;
+  profitPercentage?: number;
+  leadStatus?: LeadStatus;
+  contactStatus?: ContactStatus;
+  nextAction?: string;
+  nextActionDueAt?: string;
+}) {
+  const now = new Date().toISOString();
+
+  // Find lead in memory
+  const memLead = memoryLeads.find((l) => l.id === leadId);
+  if (memLead) {
+    if (data.eventType !== undefined) memLead.event_type = data.eventType;
+    if (data.eventDate !== undefined) memLead.event_date = data.eventDate || null;
+    if (data.eventStartTime !== undefined) memLead.event_start_time = data.eventStartTime || null;
+    if (data.eventEndTime !== undefined) memLead.event_end_time = data.eventEndTime || null;
+    if (data.location !== undefined) memLead.location = data.location || null;
+    if (data.budget !== undefined) memLead.budget = data.budget ? Number(data.budget) : null;
+    if (data.source !== undefined) memLead.source = data.source as any;
+    if (data.enquiryMessage !== undefined) memLead.enquiry_message = data.enquiryMessage || null;
+    if (data.requirements !== undefined) memLead.requirements = data.requirements;
+    if (data.otherRequirement !== undefined) memLead.other_requirement = data.otherRequirement || null;
+    if (data.profitPercentage !== undefined) memLead.profit_percentage = data.profitPercentage;
+    if (data.leadStatus !== undefined) memLead.lead_status = data.leadStatus;
+    if (data.contactStatus !== undefined) memLead.contact_status = data.contactStatus;
+    if (data.nextAction !== undefined) memLead.next_action = data.nextAction || null;
+    if (data.nextActionDueAt !== undefined) memLead.next_action_due_at = data.nextActionDueAt || null;
+    memLead.updated_at = now;
+
+    if (memLead.client_id) {
+      const memClient = memoryClients.find((c) => c.id === memLead.client_id);
+      if (memClient) {
+        if (data.clientName !== undefined) memClient.name = data.clientName;
+        if (data.phone !== undefined) memClient.phone = data.phone || null;
+        if (data.whatsapp !== undefined) memClient.whatsapp = data.whatsapp || null;
+        if (data.email !== undefined) memClient.email = data.email || null;
+        if (data.location !== undefined) memClient.location = data.location || null;
+        memClient.updated_at = now;
+      }
+    }
+  }
+
+  const live = await isSupabaseLive();
+  if (live) {
+    try {
+      const supabase = await createServerSupabase();
+      const ownerId = await getAuthenticatedOwnerId();
+
+      // Get lead to find client_id
+      const { data: dbLead } = await supabase
+        .from("leads")
+        .select("client_id")
+        .eq("id", leadId)
+        .maybeSingle();
+
+      if (dbLead?.client_id && (data.clientName || data.phone || data.whatsapp || data.email || data.location)) {
+        await supabase
+          .from("clients")
+          .update({
+            ...(data.clientName !== undefined ? { name: data.clientName } : {}),
+            ...(data.phone !== undefined ? { phone: data.phone || null } : {}),
+            ...(data.whatsapp !== undefined ? { whatsapp: data.whatsapp || null } : {}),
+            ...(data.email !== undefined ? { email: data.email || null } : {}),
+            ...(data.location !== undefined ? { location: data.location || null } : {}),
+            updated_at: now,
+          })
+          .eq("id", dbLead.client_id);
+      }
+
+      const leadUpdates: Record<string, any> = {
+        updated_at: now,
+      };
+      if (data.eventType !== undefined) leadUpdates.event_type = data.eventType;
+      if (data.eventDate !== undefined) leadUpdates.event_date = data.eventDate || null;
+      if (data.eventStartTime !== undefined) leadUpdates.event_start_time = data.eventStartTime || null;
+      if (data.eventEndTime !== undefined) leadUpdates.event_end_time = data.eventEndTime || null;
+      if (data.location !== undefined) leadUpdates.location = data.location || null;
+      if (data.budget !== undefined) leadUpdates.budget = data.budget ? Number(data.budget) : null;
+      if (data.source !== undefined) leadUpdates.source = data.source;
+      if (data.enquiryMessage !== undefined) leadUpdates.enquiry_message = data.enquiryMessage || null;
+      if (data.requirements !== undefined) leadUpdates.requirements = data.requirements;
+      if (data.otherRequirement !== undefined) leadUpdates.other_requirement = data.otherRequirement || null;
+      if (data.profitPercentage !== undefined) leadUpdates.profit_percentage = data.profitPercentage;
+      if (data.leadStatus !== undefined) leadUpdates.lead_status = data.leadStatus;
+      if (data.contactStatus !== undefined) leadUpdates.contact_status = data.contactStatus;
+      if (data.nextAction !== undefined) leadUpdates.next_action = data.nextAction || null;
+      if (data.nextActionDueAt !== undefined) leadUpdates.next_action_due_at = data.nextActionDueAt || null;
+
+      const { data: updatedDbLead, error: updateErr } = await supabase
+        .from("leads")
+        .update(leadUpdates)
+        .eq("id", leadId)
+        .select()
+        .single();
+
+      if (updateErr) {
+        console.error("Error updating lead in Supabase:", updateErr);
+        return { success: false, error: updateErr.message };
+      }
+
+      await supabase.from("activities").insert({
+        lead_id: leadId,
+        owner_id: ownerId,
+        activity_type: "NOTE_ADDED",
+        title: "Lead Details Updated",
+        description: `Lead information updated by studio.`,
+      });
+
+      return { success: true, lead: updatedDbLead };
+    } catch (err: any) {
+      console.error("Exception in updateLeadAction:", err);
+      return { success: false, error: err.message };
+    }
+  }
+
+  return { success: true };
+}
+
+export async function updateLeadPostProductionAction(
+  leadId: string,
+  data: {
+    status?: PostProductionStatus;
+    rawStorageLink?: string;
+    selectionGalleryLink?: string;
+    finalVideoLink?: string;
+    galleryPasswordPin?: string;
+  }
+) {
+  const now = new Date().toISOString();
+
+  // Find lead in memory
+  const memLead = memoryLeads.find((l) => l.id === leadId);
+  if (memLead) {
+    if (data.status !== undefined) memLead.post_production_status = data.status;
+    if (data.rawStorageLink !== undefined) memLead.raw_storage_link = data.rawStorageLink || null;
+    if (data.selectionGalleryLink !== undefined) memLead.selection_gallery_link = data.selectionGalleryLink || null;
+    if (data.finalVideoLink !== undefined) memLead.final_video_link = data.finalVideoLink || null;
+    if (data.galleryPasswordPin !== undefined) memLead.gallery_password_pin = data.galleryPasswordPin || null;
+    memLead.updated_at = now;
+  }
+
+  const live = await isSupabaseLive();
+  if (live) {
+    try {
+      const supabase = await createServerSupabase();
+      const ownerId = await getAuthenticatedOwnerId();
+
+      // Try updating direct columns in leads table (if columns exist)
+      const leadUpdates: Record<string, any> = { updated_at: now };
+      if (data.status !== undefined) leadUpdates.post_production_status = data.status;
+      if (data.rawStorageLink !== undefined) leadUpdates.raw_storage_link = data.rawStorageLink || null;
+      if (data.selectionGalleryLink !== undefined) leadUpdates.selection_gallery_link = data.selectionGalleryLink || null;
+      if (data.finalVideoLink !== undefined) leadUpdates.final_video_link = data.finalVideoLink || null;
+      if (data.galleryPasswordPin !== undefined) leadUpdates.gallery_password_pin = data.galleryPasswordPin || null;
+
+      try {
+        await supabase.from("leads").update(leadUpdates).eq("id", leadId);
+      } catch {}
+
+      // Persist structured state into notes table for guaranteed cross-session persistence
+      const { data: existingNotes } = await supabase
+        .from("notes")
+        .select("id, content")
+        .eq("lead_id", leadId);
+
+      const postProdNote = existingNotes?.find((n) => n.content?.startsWith("[POST_PRODUCTION]:"));
+      let currentPayload: any = {};
+      if (postProdNote) {
+        try {
+          currentPayload = JSON.parse(postProdNote.content.replace("[POST_PRODUCTION]:", ""));
+        } catch {}
+      }
+
+      const mergedPayload = {
+        ...currentPayload,
+        ...(data.status !== undefined ? { status: data.status } : {}),
+        ...(data.rawStorageLink !== undefined ? { rawStorageLink: data.rawStorageLink } : {}),
+        ...(data.selectionGalleryLink !== undefined ? { selectionGalleryLink: data.selectionGalleryLink } : {}),
+        ...(data.finalVideoLink !== undefined ? { finalVideoLink: data.finalVideoLink } : {}),
+        ...(data.galleryPasswordPin !== undefined ? { galleryPasswordPin: data.galleryPasswordPin } : {}),
+        updatedAt: now,
+      };
+
+      const serialized = `[POST_PRODUCTION]:${JSON.stringify(mergedPayload)}`;
+
+      if (postProdNote) {
+        await supabase.from("notes").update({ content: serialized, updated_at: now }).eq("id", postProdNote.id);
+      } else {
+        await supabase.from("notes").insert({
+          lead_id: leadId,
+          owner_id: ownerId,
+          content: serialized,
+        });
+      }
+
+      // Log timeline activity
+      await supabase.from("activities").insert({
+        lead_id: leadId,
+        owner_id: ownerId,
+        activity_type: "NOTE_ADDED",
+        title: "Post-Production Pipeline Updated",
+        description: data.status
+          ? `Post-production stage updated to "${data.status}".`
+          : `Deliverable cloud links updated.`,
+        metadata: mergedPayload,
+      });
+
+      return { success: true };
+    } catch (err: any) {
+      console.error("Exception in updateLeadPostProductionAction:", err);
+      return { success: false, error: err.message };
+    }
+  }
+
+  return { success: true };
 }
 
 export async function updateContactStatusAction(leadId: string, status: ContactStatus) {
@@ -1914,39 +2357,670 @@ export async function createEventAction(data: {
   return { success: true, event };
 }
 
-export async function updateProfileAction(profileData: Partial<Profile>) {
-  memoryProfile = {
-    ...memoryProfile,
-    ...profileData,
-    updated_at: new Date().toISOString(),
+// ----------------------------------------------------------------------------
+// DELIVERABLES ACTIONS (DYNAMIC & PERSISTENT)
+// ----------------------------------------------------------------------------
+
+export const getLeadDeliverables = cache(async (leadId: string): Promise<LeadDeliverable[]> => {
+  const live = await isSupabaseLive();
+  if (live) {
+    try {
+      const supabase = await createServerSupabase();
+      const { data } = await supabase
+        .from("lead_deliverables")
+        .select("*")
+        .eq("lead_id", leadId)
+        .order("created_at", { ascending: true });
+      if (data) return data;
+    } catch {}
+  }
+  return memoryDeliverables.filter((d) => d.lead_id === leadId);
+});
+
+export async function createLeadDeliverableAction(data: {
+  leadId: string;
+  name: string;
+  type?: string;
+  quantity?: number;
+  notes?: string;
+  isCustom?: boolean;
+}) {
+  const now = new Date().toISOString();
+  const id = "del-" + Date.now();
+  const deliverable: LeadDeliverable = {
+    id,
+    lead_id: data.leadId,
+    owner_id: memoryProfile.id,
+    name: data.name,
+    type: data.type || "Deliverable",
+    quantity: data.quantity || 1,
+    notes: data.notes || null,
+    is_custom: Boolean(data.isCustom),
+    created_at: now,
+    updated_at: now,
   };
+  memoryDeliverables.push(deliverable);
 
   const live = await isSupabaseLive();
   if (live) {
     try {
       const supabase = await createServerSupabase();
-      const { data: currentProfile } = await supabase.from("profiles").select("id").limit(1).maybeSingle();
-      const profileId = currentProfile?.id || memoryProfile.id;
-
-      await supabase
-        .from("profiles")
-        .update({
-          full_name: profileData.full_name,
-          business_name: profileData.business_name,
-          phone: profileData.phone,
-          whatsapp: profileData.whatsapp,
-          email: profileData.email,
-          default_location: profileData.default_location,
-          currency: profileData.currency,
-          date_format: profileData.date_format,
-          timezone: profileData.timezone,
-          updated_at: new Date().toISOString(),
+      const ownerId = await getAuthenticatedOwnerId();
+      const { data: dbDel, error } = await supabase
+        .from("lead_deliverables")
+        .insert({
+          lead_id: data.leadId,
+          owner_id: ownerId,
+          name: data.name,
+          type: data.type || "Deliverable",
+          quantity: data.quantity || 1,
+          notes: data.notes || null,
+          is_custom: Boolean(data.isCustom),
         })
-        .eq("id", profileId);
+        .select()
+        .single();
+      if (error) {
+        console.error("Error creating deliverable in Supabase:", error);
+        return { success: false, error: error.message };
+      }
+      if (dbDel) return { success: true, deliverable: dbDel };
+    } catch (err: any) {
+      console.error("Exception in createLeadDeliverableAction:", err);
+      return { success: false, error: err.message };
+    }
+  }
+
+  return { success: true, deliverable };
+}
+
+export async function updateLeadDeliverableAction(id: string, data: Partial<LeadDeliverable>) {
+  const now = new Date().toISOString();
+  const memDel = memoryDeliverables.find((d) => d.id === id);
+  if (memDel) {
+    if (data.name !== undefined) memDel.name = data.name;
+    if (data.type !== undefined) memDel.type = data.type;
+    if (data.quantity !== undefined) memDel.quantity = data.quantity;
+    if (data.notes !== undefined) memDel.notes = data.notes;
+    if (data.is_custom !== undefined) memDel.is_custom = data.is_custom;
+    memDel.updated_at = now;
+  }
+
+  const live = await isSupabaseLive();
+  if (live) {
+    try {
+      const supabase = await createServerSupabase();
+      const { error } = await supabase
+        .from("lead_deliverables")
+        .update({
+          ...(data.name !== undefined ? { name: data.name } : {}),
+          ...(data.type !== undefined ? { type: data.type } : {}),
+          ...(data.quantity !== undefined ? { quantity: data.quantity } : {}),
+          ...(data.notes !== undefined ? { notes: data.notes } : {}),
+          ...(data.is_custom !== undefined ? { is_custom: data.is_custom } : {}),
+          updated_at: now,
+        })
+        .eq("id", id);
+      if (error) return { success: false, error: error.message };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  return { success: true };
+}
+
+export async function deleteLeadDeliverableAction(id: string) {
+  memoryDeliverables = memoryDeliverables.filter((d) => d.id !== id);
+
+  const live = await isSupabaseLive();
+  if (live) {
+    try {
+      const supabase = await createServerSupabase();
+      const { error } = await supabase.from("lead_deliverables").delete().eq("id", id);
+      if (error) return { success: false, error: error.message };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  return { success: true };
+}
+
+export async function batchSaveLeadDeliverablesAction(
+  leadId: string,
+  deliverables: { name: string; type?: string; quantity: number; notes?: string; is_custom?: boolean }[]
+) {
+  const now = new Date().toISOString();
+  // Clear memory deliverables for this lead and replace
+  memoryDeliverables = memoryDeliverables.filter((d) => d.lead_id !== leadId);
+  const newItems: LeadDeliverable[] = deliverables.map((d, index) => ({
+    id: "del-" + Date.now() + "-" + index,
+    lead_id: leadId,
+    owner_id: memoryProfile.id,
+    name: d.name,
+    type: d.type || "Deliverable",
+    quantity: d.quantity || 1,
+    notes: d.notes || null,
+    is_custom: Boolean(d.is_custom),
+    created_at: now,
+    updated_at: now,
+  }));
+  memoryDeliverables.push(...newItems);
+
+  const live = await isSupabaseLive();
+  if (live) {
+    try {
+      const supabase = await createServerSupabase();
+      const ownerId = await getAuthenticatedOwnerId();
+
+      // Delete existing deliverables for this lead
+      await supabase.from("lead_deliverables").delete().eq("lead_id", leadId);
+
+      if (deliverables.length > 0) {
+        const rows = deliverables.map((d) => ({
+          lead_id: leadId,
+          owner_id: ownerId,
+          name: d.name,
+          type: d.type || "Deliverable",
+          quantity: d.quantity || 1,
+          notes: d.notes || null,
+          is_custom: Boolean(d.is_custom),
+        }));
+        const { error } = await supabase.from("lead_deliverables").insert(rows);
+        if (error) return { success: false, error: error.message };
+      }
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  return { success: true };
+}
+
+// ----------------------------------------------------------------------------
+// EXPENSES & PROFIT CALCULATOR ACTIONS
+// ----------------------------------------------------------------------------
+
+export const getLeadExpenses = cache(async (leadId: string): Promise<LeadExpense[]> => {
+  const live = await isSupabaseLive();
+  if (live) {
+    try {
+      const supabase = await createServerSupabase();
+      const { data } = await supabase
+        .from("lead_expenses")
+        .select("*")
+        .eq("lead_id", leadId)
+        .order("created_at", { ascending: true });
+      if (data) return data;
+    } catch {}
+  }
+  return memoryExpenses.filter((e) => e.lead_id === leadId);
+});
+
+export async function createLeadExpenseAction(data: {
+  leadId: string;
+  expenseName: string;
+  expenseCategory: string;
+  amount: number;
+  notes?: string;
+  isCustom?: boolean;
+}) {
+  const now = new Date().toISOString();
+  const id = "exp-" + Date.now();
+  const expense: LeadExpense = {
+    id,
+    lead_id: data.leadId,
+    owner_id: memoryProfile.id,
+    expense_name: data.expenseName,
+    expense_category: data.expenseCategory,
+    amount: Number(data.amount) || 0,
+    notes: data.notes || null,
+    is_custom: Boolean(data.isCustom),
+    created_at: now,
+    updated_at: now,
+  };
+  memoryExpenses.push(expense);
+
+  const live = await isSupabaseLive();
+  if (live) {
+    try {
+      const supabase = await createServerSupabase();
+      const ownerId = await getAuthenticatedOwnerId();
+      const { data: dbExp, error } = await supabase
+        .from("lead_expenses")
+        .insert({
+          lead_id: data.leadId,
+          owner_id: ownerId,
+          expense_name: data.expenseName,
+          expense_category: data.expenseCategory,
+          amount: Number(data.amount) || 0,
+          notes: data.notes || null,
+          is_custom: Boolean(data.isCustom),
+        })
+        .select()
+        .single();
+      if (error) return { success: false, error: error.message };
+      if (dbExp) return { success: true, expense: dbExp };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  return { success: true, expense };
+}
+
+export async function updateLeadExpenseAction(id: string, data: Partial<LeadExpense>) {
+  const now = new Date().toISOString();
+  const memExp = memoryExpenses.find((e) => e.id === id);
+  if (memExp) {
+    if (data.expense_name !== undefined) memExp.expense_name = data.expense_name;
+    if (data.expense_category !== undefined) memExp.expense_category = data.expense_category;
+    if (data.amount !== undefined) memExp.amount = Number(data.amount);
+    if (data.notes !== undefined) memExp.notes = data.notes;
+    if (data.is_custom !== undefined) memExp.is_custom = data.is_custom;
+    memExp.updated_at = now;
+  }
+
+  const live = await isSupabaseLive();
+  if (live) {
+    try {
+      const supabase = await createServerSupabase();
+      const { error } = await supabase
+        .from("lead_expenses")
+        .update({
+          ...(data.expense_name !== undefined ? { expense_name: data.expense_name } : {}),
+          ...(data.expense_category !== undefined ? { expense_category: data.expense_category } : {}),
+          ...(data.amount !== undefined ? { amount: Number(data.amount) } : {}),
+          ...(data.notes !== undefined ? { notes: data.notes } : {}),
+          ...(data.is_custom !== undefined ? { is_custom: data.is_custom } : {}),
+          updated_at: now,
+        })
+        .eq("id", id);
+      if (error) return { success: false, error: error.message };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  return { success: true };
+}
+
+export async function deleteLeadExpenseAction(id: string) {
+  memoryExpenses = memoryExpenses.filter((e) => e.id !== id);
+
+  const live = await isSupabaseLive();
+  if (live) {
+    try {
+      const supabase = await createServerSupabase();
+      const { error } = await supabase.from("lead_expenses").delete().eq("id", id);
+      if (error) return { success: false, error: error.message };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  return { success: true };
+}
+
+export async function updateLeadProfitPercentageAction(leadId: string, profitPercentage: number) {
+  const now = new Date().toISOString();
+  const lead = memoryLeads.find((l) => l.id === leadId);
+  if (lead) {
+    lead.profit_percentage = profitPercentage;
+    lead.updated_at = now;
+  }
+
+  const live = await isSupabaseLive();
+  if (live) {
+    try {
+      const supabase = await createServerSupabase();
+      const { error } = await supabase
+        .from("leads")
+        .update({
+          profit_percentage: profitPercentage,
+          updated_at: now,
+        })
+        .eq("id", leadId);
+      if (error) return { success: false, error: error.message };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  return { success: true };
+}
+
+export async function batchSaveLeadExpensesAction(
+  leadId: string,
+  expenses: { expense_name: string; expense_category: string; amount: number; notes?: string; is_custom?: boolean }[],
+  profitPercentage?: number
+) {
+  const now = new Date().toISOString();
+  memoryExpenses = memoryExpenses.filter((e) => e.lead_id !== leadId);
+  const newItems: LeadExpense[] = expenses.map((e, index) => ({
+    id: "exp-" + Date.now() + "-" + index,
+    lead_id: leadId,
+    owner_id: memoryProfile.id,
+    expense_name: e.expense_name,
+    expense_category: e.expense_category,
+    amount: Number(e.amount) || 0,
+    notes: e.notes || null,
+    is_custom: Boolean(e.is_custom),
+    created_at: now,
+    updated_at: now,
+  }));
+  memoryExpenses.push(...newItems);
+
+  if (profitPercentage !== undefined) {
+    const lead = memoryLeads.find((l) => l.id === leadId);
+    if (lead) {
+      lead.profit_percentage = profitPercentage;
+      lead.updated_at = now;
+    }
+  }
+
+  const live = await isSupabaseLive();
+  if (live) {
+    try {
+      const supabase = await createServerSupabase();
+      const ownerId = await getAuthenticatedOwnerId();
+
+      await supabase.from("lead_expenses").delete().eq("lead_id", leadId);
+
+      if (expenses.length > 0) {
+        const rows = expenses.map((e) => ({
+          lead_id: leadId,
+          owner_id: ownerId,
+          expense_name: e.expense_name,
+          expense_category: e.expense_category,
+          amount: Number(e.amount) || 0,
+          notes: e.notes || null,
+          is_custom: Boolean(e.is_custom),
+        }));
+        await supabase.from("lead_expenses").insert(rows);
+      }
+
+      if (profitPercentage !== undefined) {
+        await supabase
+          .from("leads")
+          .update({ profit_percentage: profitPercentage, updated_at: now })
+          .eq("id", leadId);
+      }
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  return { success: true };
+}
+
+// ----------------------------------------------------------------------------
+// STANDALONE EXPENSE CALCULATIONS ACTIONS
+// ----------------------------------------------------------------------------
+
+export const getExpenseCalculations = cache(async (): Promise<ExpenseCalculation[]> => {
+  const live = await isSupabaseLive();
+  let calcs: ExpenseCalculation[] = memoryExpenseCalculations;
+  let items: ExpenseCalculationItem[] = memoryExpenseCalculationItems;
+  const leads = await getLeads();
+  const leadMap = new Map(leads.map((l) => [l.id, l]));
+
+  if (live) {
+    try {
+      const supabase = await createServerSupabase();
+      const [{ data: cData }, { data: iData }] = await Promise.all([
+        supabase
+          .from("expense_calculations")
+          .select("*")
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("expense_calculation_items")
+          .select("*")
+          .order("created_at", { ascending: true }),
+      ]);
+      if (cData) calcs = cData;
+      if (iData) items = iData;
     } catch {}
   }
 
-  return { success: true, profile: memoryProfile };
+  const itemMap = new Map<string, ExpenseCalculationItem[]>();
+  for (const item of items) {
+    const arr = itemMap.get(item.calculation_id) || [];
+    arr.push(item);
+    itemMap.set(item.calculation_id, arr);
+  }
+
+  return calcs.map((calc) => {
+    const calcItems = itemMap.get(calc.id) || [];
+    const totalExpenses = calcItems.reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
+    const profitPct = Number(calc.profit_percentage) || 30;
+    const profitAmount = (totalExpenses * profitPct) / 100;
+    const packageAmount = totalExpenses + profitAmount;
+
+    return {
+      ...calc,
+      profit_percentage: profitPct,
+      items: calcItems,
+      lead: calc.lead_id ? leadMap.get(calc.lead_id) : undefined,
+      total_expenses: totalExpenses,
+      profit_amount: profitAmount,
+      package_amount: packageAmount,
+    };
+  });
+});
+
+export const getExpenseCalculationById = cache(async (id: string): Promise<ExpenseCalculation | null> => {
+  const all = await getExpenseCalculations();
+  const found = all.find((c) => c.id === id);
+  return found || null;
+});
+
+export async function createExpenseCalculationAction(data: {
+  name: string;
+  clientName?: string;
+  eventType?: string;
+  leadId?: string | null;
+  profitPercentage?: number;
+  notes?: string;
+  items?: { expense_name: string; expense_category: string; amount: number; notes?: string; is_custom?: boolean }[];
+}) {
+  const now = new Date().toISOString();
+  const id = "calc-" + Date.now();
+  const profitPct = data.profitPercentage ?? 30;
+
+  const newCalc: ExpenseCalculation = {
+    id,
+    owner_id: memoryProfile.id,
+    lead_id: data.leadId || null,
+    name: data.name,
+    client_name: data.clientName || null,
+    event_type: data.eventType || null,
+    profit_percentage: profitPct,
+    notes: data.notes || null,
+    created_at: now,
+    updated_at: now,
+  };
+  memoryExpenseCalculations.unshift(newCalc);
+
+  const calcItems: ExpenseCalculationItem[] = (data.items || []).map((item, idx) => ({
+    id: "calc-item-" + Date.now() + "-" + idx,
+    calculation_id: id,
+    owner_id: memoryProfile.id,
+    expense_name: item.expense_name,
+    expense_category: item.expense_category,
+    amount: Number(item.amount) || 0,
+    notes: item.notes || null,
+    is_custom: Boolean(item.is_custom),
+    created_at: now,
+    updated_at: now,
+  }));
+  memoryExpenseCalculationItems.push(...calcItems);
+
+  const live = await isSupabaseLive();
+  if (live) {
+    try {
+      const supabase = await createServerSupabase();
+      const ownerId = await getAuthenticatedOwnerId();
+
+      const { data: dbCalc, error: cErr } = await supabase
+        .from("expense_calculations")
+        .insert({
+          owner_id: ownerId,
+          lead_id: data.leadId || null,
+          name: data.name,
+          client_name: data.clientName || null,
+          event_type: data.eventType || null,
+          profit_percentage: profitPct,
+          notes: data.notes || null,
+        })
+        .select()
+        .single();
+
+      if (cErr) return { success: false, error: cErr.message };
+
+      if (dbCalc && data.items && data.items.length > 0) {
+        const rows = data.items.map((i) => ({
+          calculation_id: dbCalc.id,
+          owner_id: ownerId,
+          expense_name: i.expense_name,
+          expense_category: i.expense_category,
+          amount: Number(i.amount) || 0,
+          notes: i.notes || null,
+          is_custom: Boolean(i.is_custom),
+        }));
+        await supabase.from("expense_calculation_items").insert(rows);
+      }
+
+      return { success: true, calculation: dbCalc, calculationId: dbCalc?.id };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  return { success: true, calculation: newCalc, calculationId: id };
+}
+
+export async function updateExpenseCalculationAction(
+  id: string,
+  data: {
+    name?: string;
+    clientName?: string;
+    eventType?: string;
+    leadId?: string | null;
+    profitPercentage?: number;
+    notes?: string;
+    items?: { id?: string; expense_name: string; expense_category: string; amount: number; notes?: string; is_custom?: boolean }[];
+  }
+) {
+  const now = new Date().toISOString();
+  const memCalc = memoryExpenseCalculations.find((c) => c.id === id);
+  if (memCalc) {
+    if (data.name !== undefined) memCalc.name = data.name;
+    if (data.clientName !== undefined) memCalc.client_name = data.clientName || null;
+    if (data.eventType !== undefined) memCalc.event_type = data.eventType || null;
+    if (data.leadId !== undefined) memCalc.lead_id = data.leadId;
+    if (data.profitPercentage !== undefined) memCalc.profit_percentage = data.profitPercentage;
+    if (data.notes !== undefined) memCalc.notes = data.notes || null;
+    memCalc.updated_at = now;
+  }
+
+  if (data.items) {
+    memoryExpenseCalculationItems = memoryExpenseCalculationItems.filter((i) => i.calculation_id !== id);
+    const newItems: ExpenseCalculationItem[] = data.items.map((item, idx) => ({
+      id: item.id || "calc-item-" + Date.now() + "-" + idx,
+      calculation_id: id,
+      owner_id: memoryProfile.id,
+      expense_name: item.expense_name,
+      expense_category: item.expense_category,
+      amount: Number(item.amount) || 0,
+      notes: item.notes || null,
+      is_custom: Boolean(item.is_custom),
+      created_at: now,
+      updated_at: now,
+    }));
+    memoryExpenseCalculationItems.push(...newItems);
+  }
+
+  const live = await isSupabaseLive();
+  if (live) {
+    try {
+      const supabase = await createServerSupabase();
+      const ownerId = await getAuthenticatedOwnerId();
+
+      const updates: Record<string, any> = { updated_at: now };
+      if (data.name !== undefined) updates.name = data.name;
+      if (data.clientName !== undefined) updates.client_name = data.clientName || null;
+      if (data.eventType !== undefined) updates.event_type = data.eventType || null;
+      if (data.leadId !== undefined) updates.lead_id = data.leadId;
+      if (data.profitPercentage !== undefined) updates.profit_percentage = data.profitPercentage;
+      if (data.notes !== undefined) updates.notes = data.notes || null;
+
+      const { error: uErr } = await supabase
+        .from("expense_calculations")
+        .update(updates)
+        .eq("id", id);
+      if (uErr) return { success: false, error: uErr.message };
+
+      if (data.items) {
+        await supabase.from("expense_calculation_items").delete().eq("calculation_id", id);
+        if (data.items.length > 0) {
+          const rows = data.items.map((i) => ({
+            calculation_id: id,
+            owner_id: ownerId,
+            expense_name: i.expense_name,
+            expense_category: i.expense_category,
+            amount: Number(i.amount) || 0,
+            notes: i.notes || null,
+            is_custom: Boolean(i.is_custom),
+          }));
+          await supabase.from("expense_calculation_items").insert(rows);
+        }
+      }
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  return { success: true };
+}
+
+export async function deleteExpenseCalculationAction(id: string) {
+  memoryExpenseCalculations = memoryExpenseCalculations.filter((c) => c.id !== id);
+  memoryExpenseCalculationItems = memoryExpenseCalculationItems.filter((i) => i.calculation_id !== id);
+
+  const live = await isSupabaseLive();
+  if (live) {
+    try {
+      const supabase = await createServerSupabase();
+      const { error } = await supabase.from("expense_calculations").delete().eq("id", id);
+      if (error) return { success: false, error: error.message };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  return { success: true };
+}
+
+export async function duplicateExpenseCalculationAction(id: string) {
+  const calc = await getExpenseCalculationById(id);
+  if (!calc) return { success: false, error: "Calculation not found" };
+
+  return createExpenseCalculationAction({
+    name: `${calc.name} (Copy)`,
+    clientName: calc.client_name || undefined,
+    eventType: calc.event_type || undefined,
+    leadId: calc.lead_id || undefined,
+    profitPercentage: calc.profit_percentage,
+    notes: calc.notes || undefined,
+    items: (calc.items || []).map((i) => ({
+      expense_name: i.expense_name,
+      expense_category: i.expense_category,
+      amount: i.amount,
+      notes: i.notes || undefined,
+      is_custom: i.is_custom,
+    })),
+  });
 }
 
 // ----------------------------------------------------------------------------
@@ -1962,6 +3036,8 @@ export async function deleteLeadAction(leadId: string) {
   memoryActivities = memoryActivities.filter((a) => a.lead_id !== leadId);
   memoryNotes = memoryNotes.filter((n) => n.lead_id !== leadId);
   memoryEvents = memoryEvents.filter((e) => e.lead_id !== leadId);
+  memoryDeliverables = memoryDeliverables.filter((d) => d.lead_id !== leadId);
+  memoryExpenses = memoryExpenses.filter((e) => e.lead_id !== leadId);
 
   const live = await isSupabaseLive();
   if (live) {
@@ -1993,6 +3069,8 @@ export async function deleteClientAction(clientId: string) {
   memoryActivities = memoryActivities.filter((a) => a.client_id !== clientId && (!a.lead_id || !clientLeadIds.has(a.lead_id)));
   memoryNotes = memoryNotes.filter((n) => !clientLeadIds.has(n.lead_id));
   memoryEvents = memoryEvents.filter((e) => e.client_id !== clientId);
+  memoryDeliverables = memoryDeliverables.filter((d) => !clientLeadIds.has(d.lead_id));
+  memoryExpenses = memoryExpenses.filter((e) => !clientLeadIds.has(e.lead_id));
 
   const live = await isSupabaseLive();
   if (live) {
@@ -2135,3 +3213,64 @@ export const getStudioNotifications = cache(async (): Promise<StudioNotification
 
   return notifications;
 });
+
+export async function updateProfileAction(profileData: Partial<Profile>) {
+  const now = new Date().toISOString();
+  memoryProfile = {
+    ...memoryProfile,
+    ...profileData,
+    updated_at: now,
+  };
+
+  const live = await isSupabaseLive();
+  if (live) {
+    try {
+      const supabase = await createServerSupabase();
+      const ownerId = await getAuthenticatedOwnerId();
+      await supabase
+        .from("profiles")
+        .update({
+          ...profileData,
+          updated_at: now,
+        })
+        .or(`id.eq.${ownerId},id.eq.00000000-0000-0000-0000-000000000001`);
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  return { success: true, profile: memoryProfile };
+}
+
+export const getRequirementOptions = cache(async (): Promise<{ name: string; slug: string; category?: string }[]> => {
+  const live = await isSupabaseLive();
+  if (live) {
+    try {
+      const supabase = await createServerSupabase();
+      const { data } = await supabase
+        .from("requirement_options")
+        .select("name, slug, category")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true });
+      if (data && data.length > 0) return data;
+    } catch {}
+  }
+  return DEFAULT_REQUIREMENTS;
+});
+
+export const getExpenseCategories = cache(async (): Promise<{ name: string; slug: string; category?: string }[]> => {
+  const live = await isSupabaseLive();
+  if (live) {
+    try {
+      const supabase = await createServerSupabase();
+      const { data } = await supabase
+        .from("expense_categories")
+        .select("name, slug, category")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true });
+      if (data && data.length > 0) return data;
+    } catch {}
+  }
+  return DEFAULT_EXPENSE_CATEGORIES;
+});
+

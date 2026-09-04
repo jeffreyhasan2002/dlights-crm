@@ -96,7 +96,7 @@ export function SearchDialog() {
           >
             <div className="flex items-center gap-2.5">
               <Building2 className="h-4 w-4 text-blue-500" />
-              <span>CRM Pipeline & Kanban</span>
+              <span>CRM Pipeline & Client Tracking</span>
             </div>
             <Badge variant="outline" className="text-[10px]">Pipeline</Badge>
           </button>

@@ -1,6 +1,6 @@
 import * as React from "react";
 import { notFound } from "next/navigation";
-import { getLeadById } from "@/lib/crm-service";
+import { getLeadById, getProfile } from "@/lib/crm-service";
 import { LeadDetailView } from "@/components/crm/lead-detail-view";
 
 export const revalidate = 0;
@@ -11,11 +11,14 @@ export default async function LeadDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const resolvedParams = await params;
-  const lead = await getLeadById(resolvedParams.id);
+  const [lead, profile] = await Promise.all([
+    getLeadById(resolvedParams.id),
+    getProfile(),
+  ]);
 
   if (!lead) {
     notFound();
   }
 
-  return <LeadDetailView initialLead={lead} />;
+  return <LeadDetailView initialLead={lead} profile={profile} />;
 }

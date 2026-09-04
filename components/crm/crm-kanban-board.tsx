@@ -191,12 +191,12 @@ export function CRMKanbanBoard({ initialLeads, onLeadStatusChange }: CRMKanbanBo
 
   return (
     <div className="space-y-3">
-      {/* Kanban Fast Search Filter for 1000+ leads */}
+      {/* Fast Search Filter for client tracking board */}
       <div className="flex items-center justify-between gap-4">
         <div className="relative max-w-xs w-full">
           <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
           <Input
-            placeholder="Search Kanban board..."
+            placeholder="Search client tracking board..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-8 h-8 text-xs"
@@ -238,7 +238,7 @@ export function CRMKanbanBoard({ initialLeads, onLeadStatusChange }: CRMKanbanBo
               <div className="flex flex-1 flex-col gap-2.5 overflow-y-auto max-h-[calc(100vh-320px)] p-0.5 pr-1">
                 {columnLeads.length === 0 ? (
                   <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground min-h-[120px]">
-                    Drop leads here
+                    Drop client leads here
                   </div>
                 ) : (
                   columnLeads.map((lead) => {
@@ -256,19 +256,19 @@ export function CRMKanbanBoard({ initialLeads, onLeadStatusChange }: CRMKanbanBo
                           draggingLeadId === lead.id ? "opacity-40" : "opacity-100"
                         }`}
                       >
-                        <Card className="shadow-xs hover:border-primary/50 transition-all">
+                        <Card
+                          onClick={() => router.push(`/crm/${lead.id}`)}
+                          className="shadow-xs hover:border-primary/60 hover:shadow-md transition-all cursor-pointer group"
+                        >
                           <CardContent className="p-3.5 space-y-2.5">
                             {/* Client Name & Quick Options */}
                             <div className="flex items-start justify-between gap-1">
-                              <div>
-                                <Link
-                                  href={`/crm/${lead.id}`}
-                                  className="font-semibold text-sm text-foreground hover:underline line-clamp-1"
-                                >
+                              <div className="min-w-0 flex-1">
+                                <span className="font-semibold text-sm text-foreground group-hover:text-primary transition-colors line-clamp-1">
                                   {lead.client?.name}
-                                </Link>
+                                </span>
                                 <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground pt-0.5">
-                                  <Badge variant="outline" className="text-[9px] px-1 py-0">
+                                  <Badge variant="outline" className="text-[9px] px-1 py-0 shrink-0">
                                     {lead.event_type}
                                   </Badge>
                                   {lead.location && (
@@ -277,41 +277,54 @@ export function CRMKanbanBoard({ initialLeads, onLeadStatusChange }: CRMKanbanBo
                                 </div>
                               </div>
 
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-6 w-6">
-                                    <MoreVertical className="h-3.5 w-3.5" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuLabel className="text-xs">Move Stage</DropdownMenuLabel>
-                                  <DropdownMenuSeparator />
-                                  {PIPELINE_COLUMNS.map((col) => (
-                                    <DropdownMenuItem
-                                      key={col.id}
-                                      onClick={() => handleStatusSelect(lead.id, col.id)}
-                                      disabled={lead.lead_status === col.id}
-                                      className="text-xs"
+                              <div onClick={(e) => e.stopPropagation()}>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-6 w-6 shrink-0 hover:bg-muted"
+                                      onClick={(e) => e.stopPropagation()}
                                     >
-                                      {col.title}
+                                      <MoreVertical className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                                    <DropdownMenuLabel className="text-xs">Move Stage</DropdownMenuLabel>
+                                    <DropdownMenuSeparator />
+                                    {PIPELINE_COLUMNS.map((col) => (
+                                      <DropdownMenuItem
+                                        key={col.id}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleStatusSelect(lead.id, col.id);
+                                        }}
+                                        disabled={lead.lead_status === col.id}
+                                        className="text-xs"
+                                      >
+                                        {col.title}
+                                      </DropdownMenuItem>
+                                    ))}
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem asChild>
+                                      <Link href={`/crm/${lead.id}`} className="text-xs">
+                                        Open Full Details
+                                      </Link>
                                     </DropdownMenuItem>
-                                  ))}
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem asChild>
-                                    <Link href={`/crm/${lead.id}`} className="text-xs">
-                                      Open Full Details
-                                    </Link>
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem
-                                    onClick={() => setLeadToDelete(lead)}
-                                    className="text-xs text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer"
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-                                    <span>Delete Lead</span>
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setLeadToDelete(lead);
+                                      }}
+                                      className="text-xs text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                                      <span>Delete Lead</span>
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
                             </div>
 
                             {/* Budget & Contact Status */}
@@ -429,3 +442,5 @@ export function CRMKanbanBoard({ initialLeads, onLeadStatusChange }: CRMKanbanBo
     </div>
   );
 }
+
+export { CRMKanbanBoard as CRMClientTrackingBoard };

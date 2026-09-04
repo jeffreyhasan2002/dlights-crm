@@ -140,10 +140,20 @@ export interface Lead {
   client_id: string;
   event_type: EventType;
   event_date: string | null;
+  event_start_time?: string | null;
+  event_end_time?: string | null;
   location: string | null;
   budget: number | null;
   source: EnquirySource | null;
   enquiry_message: string | null;
+  requirements?: string[] | null;
+  other_requirement?: string | null;
+  profit_percentage?: number | null;
+  post_production_status?: string | null;
+  raw_storage_link?: string | null;
+  selection_gallery_link?: string | null;
+  final_video_link?: string | null;
+  gallery_password_pin?: string | null;
   lead_status: LeadStatus;
   contact_status: ContactStatus;
   last_contacted_at: string | null;
@@ -155,6 +165,16 @@ export interface Lead {
   updated_at: string;
   client?: Client;
 }
+
+export type PostProductionStatus =
+  | 'Raw Footage Backup'
+  | 'Client Selection Sent'
+  | 'Client Selection Received'
+  | 'Editing & Color Grading'
+  | 'Trailer / Film Delivered'
+  | 'Album Layout Proofing'
+  | 'Album Printed & Delivered'
+  | 'Project Completed';
 
 export interface FollowUp {
   id: string;
@@ -284,6 +304,63 @@ export interface Note {
   updated_at: string;
 }
 
+export interface LeadDeliverable {
+  id: string;
+  lead_id: string;
+  owner_id: string;
+  name: string;
+  type?: string;
+  quantity: number;
+  notes?: string | null;
+  is_custom: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LeadExpense {
+  id: string;
+  lead_id: string;
+  owner_id: string;
+  expense_name: string;
+  expense_category: string;
+  amount: number;
+  notes?: string | null;
+  is_custom: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExpenseCalculation {
+  id: string;
+  owner_id: string;
+  lead_id?: string | null;
+  name: string;
+  client_name?: string | null;
+  event_type?: string | null;
+  profit_percentage: number;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+  lead?: Lead;
+  items?: ExpenseCalculationItem[];
+  total_expenses?: number;
+  profit_amount?: number;
+  package_amount?: number;
+}
+
+export interface ExpenseCalculationItem {
+  id: string;
+  calculation_id: string;
+  owner_id: string;
+  expense_name: string;
+  expense_category: string;
+  amount: number;
+  notes?: string | null;
+  is_custom: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface LeadWithDetails extends Lead {
   client: Client;
   quotations?: Quotation[];
@@ -292,6 +369,9 @@ export interface LeadWithDetails extends Lead {
   communications?: Communication[];
   activities?: Activity[];
   notes?: Note[];
+  deliverables?: LeadDeliverable[];
+  expenses?: LeadExpense[];
+  expense_calculation?: ExpenseCalculation;
 }
 
 export interface DashboardMetrics {
@@ -317,3 +397,79 @@ export interface StudioNotification {
   type: "overdue" | "due_today" | "pending_advance";
   created_at: string;
 }
+
+export const DEFAULT_REQUIREMENTS: { name: string; slug: string; category?: string }[] = [
+  { name: "Traditional Photography", slug: "traditional_photography", category: "Photography" },
+  { name: "Traditional Videography", slug: "traditional_videography", category: "Videography" },
+  { name: "Candid Photography", slug: "candid_photography", category: "Photography" },
+  { name: "Candid Videography", slug: "candid_videography", category: "Videography" },
+  { name: "Cinematic Video", slug: "cinematic_video", category: "Videography" },
+  { name: "Pre-Wedding Shoot", slug: "pre_wedding_shoot", category: "Events" },
+  { name: "Engagement", slug: "engagement", category: "Events" },
+  { name: "Thaali Ponnurukku", slug: "thaali_ponnurukku", category: "Events" },
+  { name: "Nalangu", slug: "nalangu", category: "Events" },
+  { name: "Haldi", slug: "haldi", category: "Events" },
+  { name: "Sangeet", slug: "sangeet", category: "Events" },
+  { name: "Mehndi", slug: "mehndi", category: "Events" },
+  { name: "Thala Kalyanam", slug: "thala_kalyanam", category: "Events" },
+  { name: "Wedding Day", slug: "wedding_day", category: "Events" },
+  { name: "Maruveedu", slug: "maruveedu", category: "Events" },
+  { name: "Reception", slug: "reception", category: "Events" },
+  { name: "Maternity", slug: "maternity", category: "Shoots" },
+  { name: "Baptism", slug: "baptism", category: "Shoots" },
+  { name: "LED Wall", slug: "led_wall", category: "Production" },
+  { name: "Live Videographer", slug: "live_videographer", category: "Production" },
+  { name: "Album", slug: "album", category: "Deliverables" },
+  { name: "Video Editing", slug: "video_editing", category: "Deliverables" },
+  { name: "Highlights", slug: "highlights", category: "Deliverables" },
+  { name: "Calendar & Pendrive Box", slug: "calendar_pendrive_box", category: "Deliverables" },
+  { name: "Frame", slug: "frame", category: "Deliverables" },
+  { name: "Other", slug: "other", category: "Custom" },
+];
+
+export const DEFAULT_EXPENSE_CATEGORIES: { name: string; slug: string; category?: string }[] = [
+  { name: "Pre-Wedding Shoot", slug: "pre_wedding_shoot", category: "Events" },
+  { name: "Engagement", slug: "engagement", category: "Events" },
+  { name: "Thaali Ponnurukku", slug: "thaali_ponnurukku", category: "Events" },
+  { name: "Nalangu", slug: "nalangu", category: "Events" },
+  { name: "Haldi, Sangeet, Mehndi", slug: "haldi_sangeet_mehndi", category: "Events" },
+  { name: "Thala Kalyanam", slug: "thala_kalyanam", category: "Events" },
+  { name: "Wedding Day", slug: "wedding_day", category: "Events" },
+  { name: "Maruveedu", slug: "maruveedu", category: "Events" },
+  { name: "Nagercoil Reception", slug: "nagercoil_reception", category: "Events" },
+  { name: "LED Wall", slug: "led_wall", category: "Production" },
+  { name: "Live Videographer", slug: "live_videographer", category: "Production" },
+  { name: "Album Printing", slug: "album_printing", category: "Post-Production" },
+  { name: "Album Design", slug: "album_design", category: "Post-Production" },
+  { name: "Video Editing", slug: "video_editing", category: "Post-Production" },
+  { name: "Highlights", slug: "highlights", category: "Post-Production" },
+  { name: "Calendar & Pendrive Box", slug: "calendar_pendrive_box", category: "Deliverables" },
+  { name: "Frame", slug: "frame", category: "Deliverables" },
+  { name: "Office Rent", slug: "office_rent", category: "Overhead" },
+  { name: "Assistant Payments", slug: "assistant_payments", category: "Labor" },
+  { name: "Petrol", slug: "petrol", category: "Travel" },
+  { name: "Other", slug: "other", category: "Custom" },
+];
+
+export const DEFAULT_DELIVERABLES: { name: string; type: string; defaultQty: number; notes: string }[] = [
+  { name: "Traditional Photography", type: "Photography", defaultQty: 1, notes: "Complete ritual documentation" },
+  { name: "Traditional Videography", type: "Videography", defaultQty: 1, notes: "Full ceremony multi-cam coverage" },
+  { name: "Candid Photography", type: "Photography", defaultQty: 1, notes: "High-res color-graded stills" },
+  { name: "Candid Videography", type: "Videography", defaultQty: 1, notes: "Cinematic moments & candid captures" },
+  { name: "Cinematic Video", type: "Videography", defaultQty: 1, notes: "3-5 min highlight trailer with licensed score" },
+  { name: "Drone", type: "Aerial", defaultQty: 1, notes: "4K aerial cinematography" },
+  { name: "Album", type: "Print", defaultQty: 2, notes: "Luxury hardbound silk photo album" },
+  { name: "Album Design", type: "Post-Production", defaultQty: 2, notes: "Custom layout designing with proofing" },
+  { name: "Video Editing", type: "Post-Production", defaultQty: 1, notes: "Full video editing & sound design" },
+  { name: "Highlights", type: "Videography", defaultQty: 1, notes: "Teaser reel for social media" },
+  { name: "Full Wedding Film", type: "Videography", defaultQty: 1, notes: "45-60 min documentary feature" },
+  { name: "Reels", type: "Social Media", defaultQty: 3, notes: "Vertical 9:16 reels for Instagram" },
+  { name: "Frames", type: "Print", defaultQty: 2, notes: "Premium framed wall portrait prints" },
+  { name: "Calendar", type: "Print", defaultQty: 1, notes: "Personalized studio desk calendar" },
+  { name: "Pendrive Box", type: "Packaging", defaultQty: 1, notes: "Custom wooden pendrive keepsake box" },
+  { name: "LED Wall", type: "Production", defaultQty: 1, notes: "Live feed display on venue LED wall" },
+  { name: "Live Streaming", type: "Broadcast", defaultQty: 1, notes: "1080p YouTube/Private live webcast" },
+  { name: "Live Videographer", type: "Production", defaultQty: 1, notes: "Live camera operator" },
+  { name: "Other", type: "Custom", defaultQty: 1, notes: "" },
+];
+

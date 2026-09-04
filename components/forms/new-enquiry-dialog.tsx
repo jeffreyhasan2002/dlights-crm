@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Plus, Loader2, Sparkles } from "lucide-react";
+import { Plus, Loader2, Sparkles, Clock, Calendar, MapPin, User, FileText } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -29,43 +29,61 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { RequirementSelector } from "@/components/crm/requirement-selector";
 import { createLeadServerAction } from "@/lib/crm-actions";
 
-const enquiryFormSchema = z.object({
-  clientName: z.string().min(2, "Client name must be at least 2 characters"),
-  phone: z.string().optional(),
-  whatsapp: z.string().optional(),
-  email: z.string().email("Invalid email address").optional().or(z.literal("")),
-  eventType: z.enum([
-    "Wedding",
-    "Engagement",
-    "Sangeet",
-    "Reception",
-    "Muhurtham",
-    "Pre-Wedding",
-    "Post-Wedding",
-    "Birthday",
-    "Baby Shoot",
-    "Portrait",
-    "Corporate",
-    "Other",
-  ]),
-  eventDate: z.string().optional(),
-  location: z.string().optional(),
-  budget: z.coerce.number().positive("Budget must be greater than 0").optional().or(z.literal(0)),
-  source: z.enum([
-    "Instagram",
-    "WhatsApp",
-    "Referral",
-    "Website",
-    "Google",
-    "Facebook",
-    "Phone",
-    "Existing Client",
-    "Other",
-  ]),
-  enquiryMessage: z.string().optional(),
-});
+const enquiryFormSchema = z
+  .object({
+    clientName: z.string().min(2, "Client name must be at least 2 characters"),
+    phone: z.string().optional(),
+    whatsapp: z.string().optional(),
+    email: z.string().email("Invalid email address").optional().or(z.literal("")),
+    eventType: z.enum([
+      "Wedding",
+      "Engagement",
+      "Sangeet",
+      "Reception",
+      "Muhurtham",
+      "Pre-Wedding",
+      "Post-Wedding",
+      "Birthday",
+      "Baby Shoot",
+      "Portrait",
+      "Corporate",
+      "Other",
+    ]),
+    eventDate: z.string().optional(),
+    eventStartTime: z.string().optional(),
+    eventEndTime: z.string().optional(),
+    location: z.string().optional(),
+    budget: z.coerce.number().positive("Budget must be greater than 0").optional().or(z.literal(0)),
+    source: z.enum([
+      "Instagram",
+      "WhatsApp",
+      "Referral",
+      "Website",
+      "Google",
+      "Facebook",
+      "Phone",
+      "Existing Client",
+      "Other",
+    ]),
+    enquiryMessage: z.string().optional(),
+    requirements: z.array(z.string()).default([]),
+    otherRequirement: z.string().optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.requirements.includes("Other") && (!data.otherRequirement || !data.otherRequirement.trim())) {
+        return false;
+      }
+      return true;
+    },
+    {
+      message: 'Please specify your custom requirement when "Other" is selected.',
+      path: ["otherRequirement"],
+    }
+  );
 
 type EnquiryFormValues = z.infer<typeof enquiryFormSchema>;
 
@@ -104,15 +122,21 @@ export function NewEnquiryDialog({
       email: "",
       eventType: "Wedding",
       eventDate: "",
+      eventStartTime: "",
+      eventEndTime: "",
       location: "",
       budget: 0,
       source: "Instagram",
       enquiryMessage: "",
+      requirements: [],
+      otherRequirement: "",
     },
   });
 
   const selectedEventType = watch("eventType");
   const selectedSource = watch("source");
+  const selectedRequirements = watch("requirements") || [];
+  const otherRequirementValue = watch("otherRequirement") || "";
 
   const onSubmit = async (data: EnquiryFormValues) => {
     try {
@@ -124,10 +148,15 @@ export function NewEnquiryDialog({
         email: data.email || undefined,
         eventType: data.eventType,
         eventDate: data.eventDate || undefined,
+        eventStartTime: data.eventStartTime || undefined,
+        eventEndTime: data.eventEndTime || undefined,
         location: data.location || undefined,
         budget: data.budget ? Number(data.budget) : undefined,
         source: data.source,
         enquiryMessage: data.enquiryMessage || undefined,
+        requirements: data.requirements,
+        otherRequirement: data.otherRequirement || undefined,
+        profitPercentage: 30,
       });
 
       if (res.success && res.leadId) {
@@ -161,22 +190,23 @@ export function NewEnquiryDialog({
           </Button>
         </DialogTrigger>
       )}
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl font-bold">
             <Sparkles className="h-5 w-5 text-amber-500" />
             Add New Enquiry
           </DialogTitle>
           <DialogDescription>
-            Record a new client lead, enquiry event details, budget, and contact source.
+            Record client details, event timings, requirements scope, budget, and lead source.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-2">
-          {/* Client Details Section */}
-          <div className="rounded-lg border p-4 bg-muted/20 space-y-3">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Client Details
+          {/* 1. Client Details Section */}
+          <div className="rounded-xl border p-4 bg-muted/20 space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <User className="h-3.5 w-3.5 text-primary" />
+              <span>Client Information</span>
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -228,12 +258,13 @@ export function NewEnquiryDialog({
             </div>
           </div>
 
-          {/* Event Details Section */}
-          <div className="rounded-lg border p-4 bg-muted/20 space-y-3">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Event & Budget Information
+          {/* 2. Event Details & Timings Section */}
+          <div className="rounded-xl border p-4 bg-muted/20 space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <Calendar className="h-3.5 w-3.5 text-primary" />
+              <span>Event Information & Schedule</span>
             </h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="eventType">
                   Event Type <span className="text-destructive">*</span>
@@ -263,7 +294,7 @@ export function NewEnquiryDialog({
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="eventDate">Tentative Event Date</Label>
+                <Label htmlFor="eventDate">Event Date</Label>
                 <Input
                   id="eventDate"
                   type="date"
@@ -272,11 +303,36 @@ export function NewEnquiryDialog({
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="location">Event Location / Venue</Label>
+                <Label htmlFor="location">Location / Venue</Label>
                 <Input
                   id="location"
-                  placeholder="e.g. Udaivilas, Udaipur / Mumbai"
+                  placeholder="e.g. Udaivilas / Nagercoil"
                   {...register("location")}
+                />
+              </div>
+
+              {/* Event Timings: Start Time & End Time */}
+              <div className="space-y-1.5">
+                <Label htmlFor="eventStartTime" className="flex items-center gap-1 text-xs">
+                  <Clock className="h-3 w-3 text-muted-foreground" />
+                  <span>Start Time</span>
+                </Label>
+                <Input
+                  id="eventStartTime"
+                  type="time"
+                  {...register("eventStartTime")}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="eventEndTime" className="flex items-center gap-1 text-xs">
+                  <Clock className="h-3 w-3 text-muted-foreground" />
+                  <span>End Time</span>
+                </Label>
+                <Input
+                  id="eventEndTime"
+                  type="time"
+                  {...register("eventEndTime")}
                 />
               </div>
 
@@ -290,8 +346,8 @@ export function NewEnquiryDialog({
                 />
               </div>
 
-              <div className="space-y-1.5 md:col-span-2">
-                <Label htmlFor="source">Enquiry Source (How did they find you?)</Label>
+              <div className="space-y-1.5 md:col-span-3">
+                <Label htmlFor="source">Lead Source (How did they discover you?)</Label>
                 <Select
                   value={selectedSource}
                   onValueChange={(val: any) => setValue("source", val)}
@@ -315,13 +371,27 @@ export function NewEnquiryDialog({
             </div>
           </div>
 
-          {/* Notes / Message */}
+          {/* 3. Requirements Section (Multi-select) */}
+          <div className="rounded-xl border p-4 bg-muted/20 space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              Deliverables & Requirements Scope
+            </h4>
+            <RequirementSelector
+              selectedRequirements={selectedRequirements}
+              onChange={(reqs) => setValue("requirements", reqs, { shouldValidate: true })}
+              otherRequirement={otherRequirementValue}
+              onOtherRequirementChange={(val) => setValue("otherRequirement", val, { shouldValidate: true })}
+              error={errors.otherRequirement?.message}
+            />
+          </div>
+
+          {/* 4. Notes / Message */}
           <div className="space-y-1.5">
             <Label htmlFor="enquiryMessage">Initial Client Note / Message</Label>
             <Textarea
               id="enquiryMessage"
-              placeholder="Paste enquiry text, guest count, deliverables requested or shoot preferences..."
-              rows={3}
+              placeholder="Paste enquiry text, guest count, deliverables requested, shoot preferences..."
+              rows={2}
               {...register("enquiryMessage")}
             />
           </div>
@@ -335,7 +405,7 @@ export function NewEnquiryDialog({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting} className="min-w-[120px]">
+            <Button type="submit" disabled={isSubmitting} className="min-w-[130px]">
               {isSubmitting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />

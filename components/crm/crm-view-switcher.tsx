@@ -43,7 +43,8 @@ export function CRMViewSwitcher({
 }: CRMViewSwitcherProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const activeTab = searchParams?.get("view") || defaultView;
+  const rawTab = searchParams?.get("view") || defaultView;
+  const activeTab = rawTab === "kanban" ? "tracking" : rawTab;
 
   const [leads, setLeads] = useState<LeadWithDetails[]>(serverLeads);
   const [followUps, setFollowUps] = useState<FollowUp[]>(serverFollowUps);
@@ -273,11 +274,11 @@ export function CRMViewSwitcher({
             </TabsTrigger>
 
             <TabsTrigger
-              value="kanban"
+              value="tracking"
               className="data-[state=active]:bg-muted data-[state=active]:text-foreground text-xs px-3 py-1.5 rounded-md gap-1.5"
             >
               <KanbanIcon className="h-3.5 w-3.5 text-primary" />
-              <span>Kanban Board</span>
+              <span>Client Tracking Board</span>
             </TabsTrigger>
 
             <TabsTrigger
@@ -326,7 +327,7 @@ export function CRMViewSwitcher({
       {/* Render Active View Component */}
       <div>
         {activeTab === "all" && <CRMTableView initialLeads={enrichedLeads} />}
-        {activeTab === "kanban" && (
+        {(activeTab === "tracking" || activeTab === "kanban") && (
           <CRMKanbanBoard
             initialLeads={enrichedLeads}
             onLeadStatusChange={handleLeadStatusChange}
