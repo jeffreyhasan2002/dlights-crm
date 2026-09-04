@@ -270,6 +270,10 @@ export function CRMViewSwitcher({
         resolvedStatus = "Follow-up Required";
       }
 
+      if (statusOverrides[lead.id]) {
+        resolvedStatus = statusOverrides[lead.id];
+      }
+
       return {
         ...lead,
         lead_status: resolvedStatus,
@@ -279,11 +283,13 @@ export function CRMViewSwitcher({
         next_follow_up_at: nextFollowUpAt,
       };
     });
-  }, [leads, quotations, followUps, bookings]);
+  }, [leads, quotations, followUps, bookings, statusOverrides]);
 
   // Dynamic Live Counts
   const totalEnquiries = enrichedLeads.length;
-  const negotiationsCount = enrichedLeads.filter((l) => l.lead_status === "Negotiation").length;
+  const negotiationsCount = enrichedLeads.filter(
+    (l) => l.lead_status === "Negotiation" || l.lead_status?.toLowerCase() === "negotiation"
+  ).length;
   const bookedCount = enrichedLeads.filter((l) => l.lead_status === "Accepted / Booked").length;
   const lostCount = enrichedLeads.filter((l) => l.lead_status === "Rejected / Lost").length;
   const pendingFollowUpsCount = followUps.filter((f) => !f.completed_at).length;

@@ -239,6 +239,7 @@ export const getLeads = cache(async (filters: GetLeadsFilters = {}): Promise<Lea
         { data: delData },
         { data: expData },
         { data: pData },
+        { data: evData },
       ] = await Promise.all([
         supabase
           .from("leads")
@@ -279,6 +280,10 @@ export const getLeads = cache(async (filters: GetLeadsFilters = {}): Promise<Lea
           .from("payments")
           .select("id, owner_id, booking_id, amount, payment_type, payment_method, payment_date, reference, notes, created_at")
           .order("payment_date", { ascending: false }),
+        supabase
+          .from("events")
+          .select("*")
+          .order("event_date", { ascending: true }),
       ]);
 
       if (lData) leadsData = lData as any[];
@@ -292,6 +297,7 @@ export const getLeads = cache(async (filters: GetLeadsFilters = {}): Promise<Lea
       if (delData) deliverablesData = delData as any[];
       if (expData) expensesData = expData as any[];
       if (pData) memoryPayments = pData as any[];
+      if (evData) memoryEvents = evData as any[];
     } catch (err) {
       console.error("Error fetching leads from Supabase:", err);
     }
@@ -388,6 +394,15 @@ export const getLeads = cache(async (filters: GetLeadsFilters = {}): Promise<Lea
     }
   }
 
+  const eventMap = new Map<string, CRMEvent[]>();
+  for (const ev of memoryEvents) {
+    if (ev.lead_id) {
+      const arr = eventMap.get(ev.lead_id) || [];
+      arr.push(ev);
+      eventMap.set(ev.lead_id, arr);
+    }
+  }
+
   let results: LeadWithDetails[] = leadsData.map((lead) => {
     const client = clientMap.get(lead.client_id) || {
       id: lead.client_id,
@@ -409,6 +424,28 @@ export const getLeads = cache(async (filters: GetLeadsFilters = {}): Promise<Lea
     const leadNotes = noteMap.get(lead.id) || [];
     const leadDeliverables = deliverableMap.get(lead.id) || [];
     const leadExpenses = expenseMap.get(lead.id) || [];
+    let leadEvents = eventMap.get(lead.id) || [];
+
+    if (leadEvents.length === 0 && (lead.event_type || lead.event_date)) {
+      leadEvents = [
+        {
+          id: "ev-synth-" + lead.id,
+          lead_id: lead.id,
+          client_id: lead.client_id,
+          owner_id: lead.owner_id,
+          event_name: lead.event_type || "Primary Event",
+          event_type: (lead.event_type || "Other") as any,
+          event_date: lead.event_date || "",
+          start_time: lead.event_start_time || null,
+          end_time: lead.event_end_time || null,
+          location: lead.location,
+          status: "Upcoming",
+          notes: null,
+          created_at: lead.created_at,
+          updated_at: lead.updated_at,
+        },
+      ];
+    }
 
     if (lead.lead_status === "Accepted / Booked" && leadBookings.length === 0) {
       const quoteAmount = leadQuotations.find((q) => q.status === "Accepted")?.amount || leadQuotations[0]?.amount;
@@ -490,6 +527,7 @@ export const getLeads = cache(async (filters: GetLeadsFilters = {}): Promise<Lea
       notes: leadNotes,
       deliverables: leadDeliverables,
       expenses: leadExpenses,
+      events: leadEvents,
     };
   });
 
@@ -1270,7 +1308,8 @@ export async function updateLeadAction(leadId: string, data: {
   whatsapp?: string;
   email?: string;
   location?: string;
-  eventType?: EventType;
+  eventType?: EventType | string;
+  customEventType?: string;
   eventDate?: string;
   eventStartTime?: string;
   eventEndTime?: string;
@@ -1284,13 +1323,28 @@ export async function updateLeadAction(leadId: string, data: {
   contactStatus?: ContactStatus;
   nextAction?: string;
   nextActionDueAt?: string;
+  events?: Array<{
+    eventName?: string;
+    eventType: string;
+    customEventType?: string;
+    eventDate: string;
+    eventStartTime?: string;
+    eventEndTime?: string;
+    location?: string;
+    notes?: string;
+    sortOrder?: number;
+  }>;
 }) {
   const now = new Date().toISOString();
 
   // Find lead in memory
   const memLead = memoryLeads.find((l) => l.id === leadId);
   if (memLead) {
-    if (data.eventType !== undefined) memLead.event_type = data.eventType;
+    if (data.eventType !== undefined) {
+      memLead.event_type = (data.eventType === "Other" && data.customEventType?.trim())
+        ? (data.customEventType.trim() as any)
+        : data.eventType;
+    }
     if (data.eventDate !== undefined) memLead.event_date = data.eventDate || null;
     if (data.eventStartTime !== undefined) memLead.event_start_time = data.eventStartTime || null;
     if (data.eventEndTime !== undefined) memLead.event_end_time = data.eventEndTime || null;
@@ -1317,6 +1371,30 @@ export async function updateLeadAction(leadId: string, data: {
         if (data.location !== undefined) memClient.location = data.location || null;
         memClient.updated_at = now;
       }
+    }
+
+    if (data.events && Array.isArray(data.events)) {
+      memoryEvents = memoryEvents.filter((e) => e.lead_id !== leadId);
+      data.events.forEach((ev, idx) => {
+        memoryEvents.push({
+          id: "ev-" + Date.now() + "-" + idx,
+          lead_id: leadId,
+          client_id: memLead.client_id,
+          owner_id: memLead.owner_id || memoryProfile.id,
+          event_name: ev.eventName || (ev.eventType === "Other" && ev.customEventType ? ev.customEventType : ev.eventType),
+          event_type: ev.eventType as any,
+          custom_event_type: ev.customEventType || null,
+          event_date: ev.eventDate,
+          start_time: ev.eventStartTime || null,
+          end_time: ev.eventEndTime || null,
+          location: ev.location || data.location || null,
+          status: "Upcoming",
+          notes: ev.notes || null,
+          sort_order: ev.sortOrder ?? idx,
+          created_at: now,
+          updated_at: now,
+        });
+      });
     }
   }
 
@@ -1350,7 +1428,11 @@ export async function updateLeadAction(leadId: string, data: {
       const leadUpdates: Record<string, any> = {
         updated_at: now,
       };
-      if (data.eventType !== undefined) leadUpdates.event_type = data.eventType;
+      if (data.eventType !== undefined) {
+        leadUpdates.event_type = (data.eventType === "Other" && data.customEventType?.trim())
+          ? data.customEventType.trim()
+          : data.eventType;
+      }
       if (data.eventDate !== undefined) leadUpdates.event_date = data.eventDate || null;
       if (data.eventStartTime !== undefined) leadUpdates.event_start_time = data.eventStartTime || null;
       if (data.eventEndTime !== undefined) leadUpdates.event_end_time = data.eventEndTime || null;
@@ -1376,6 +1458,42 @@ export async function updateLeadAction(leadId: string, data: {
       if (updateErr) {
         console.error("Error updating lead in Supabase:", updateErr);
         return { success: false, error: updateErr.message };
+      }
+
+      // Sync events if provided
+      if (data.events && Array.isArray(data.events)) {
+        await supabase.from("events").delete().eq("lead_id", leadId);
+
+        const dbEvents = data.events.map((ev, idx) => ({
+          owner_id: ownerId,
+          client_id: dbLead?.client_id || null,
+          lead_id: leadId,
+          event_name: ev.eventName || (ev.eventType === "Other" && ev.customEventType ? ev.customEventType : ev.eventType),
+          event_type: ev.eventType,
+          event_date: ev.eventDate || null,
+          start_time: ev.eventStartTime || null,
+          end_time: ev.eventEndTime || null,
+          location: ev.location || data.location || null,
+          status: "Upcoming",
+          notes: ev.notes || null,
+        }));
+
+        const dbEventsWithExtras = data.events.map((ev, idx) => ({
+          ...dbEvents[idx],
+          custom_event_type: ev.customEventType || null,
+          sort_order: ev.sortOrder ?? idx,
+        }));
+
+        let { data: insEvents, error: evErr } = await supabase.from("events").insert(dbEventsWithExtras).select();
+        if (evErr) {
+          const retry = await supabase.from("events").insert(dbEvents).select();
+          insEvents = retry.data;
+        }
+
+        if (insEvents) {
+          memoryEvents = memoryEvents.filter((e) => e.lead_id !== leadId);
+          memoryEvents.push(...(insEvents as any[]));
+        }
       }
 
       await recordSupabaseActivity(supabase, {
@@ -1652,6 +1770,7 @@ export async function updateLeadStatusAction(leadId: string, status: LeadStatus)
 
       if (leadErr) {
         console.error("Error updating lead status in Supabase:", leadErr);
+        return { success: false, error: leadErr.message };
       }
 
       // If moved to Accepted or Lost, complete pending follow-ups
@@ -2143,11 +2262,14 @@ export async function recordPaymentAction(data: {
     targetBookingId = "b-" + data.leadId;
   }
 
+  let booking = memoryBookings.find((b) => b.id === targetBookingId);
+
   const pId = "p-" + Date.now();
   const now = new Date().toISOString();
   const newPayment: Payment = {
     id: pId,
     booking_id: targetBookingId || "b-unknown",
+    lead_id: data.leadId || (booking ? booking.lead_id : null),
     owner_id: memoryProfile.id,
     amount: data.amount,
     payment_type: data.paymentType,
@@ -2161,7 +2283,6 @@ export async function recordPaymentAction(data: {
 
   memoryPayments.unshift(newPayment);
 
-  let booking = memoryBookings.find((b) => b.id === targetBookingId);
   if (booking) {
     booking.remaining_amount = Math.max(0, booking.remaining_amount - data.amount);
     if (data.paymentType === "Advance" && !booking.advance_paid_at) {
@@ -2199,20 +2320,35 @@ export async function recordPaymentAction(data: {
       }
 
       if (targetBookingId) {
-        const { data: dbP, error: pErr } = await supabase
+        const basePayment = {
+          booking_id: targetBookingId,
+          owner_id: ownerId,
+          amount: data.amount,
+          payment_type: data.paymentType,
+          payment_method: data.paymentMethod,
+          payment_date: now.split("T")[0],
+          reference: data.reference || null,
+          notes: data.notes || null,
+        };
+
+        let { data: dbP, error: pErr } = await supabase
           .from("payments")
           .insert({
-            booking_id: targetBookingId,
-            owner_id: ownerId,
-            amount: data.amount,
-            payment_type: data.paymentType,
-            payment_method: data.paymentMethod,
-            payment_date: now.split("T")[0],
-            reference: data.reference || null,
-            notes: data.notes || null,
+            ...basePayment,
+            lead_id: data.leadId || dbB?.lead_id || null,
           })
           .select()
           .single();
+
+        if (pErr) {
+          const retry = await supabase
+            .from("payments")
+            .insert(basePayment)
+            .select()
+            .single();
+          dbP = retry.data;
+          pErr = retry.error;
+        }
 
         if (pErr) {
           console.error("Supabase payment insert error:", pErr);

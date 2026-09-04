@@ -84,7 +84,8 @@ export async function updateLeadServerAction(
     whatsapp?: string;
     email?: string;
     location?: string;
-    eventType?: EventType;
+    eventType?: string;
+    customEventType?: string;
     eventDate?: string;
     eventStartTime?: string;
     eventEndTime?: string;
@@ -98,6 +99,15 @@ export async function updateLeadServerAction(
     contactStatus?: ContactStatus;
     nextAction?: string;
     nextActionDueAt?: string;
+    events?: Array<{
+      eventType: string;
+      customEventType?: string;
+      eventDate: string;
+      eventStartTime?: string;
+      eventEndTime?: string;
+      location?: string;
+      notes?: string;
+    }>;
   }
 ) {
   const res = await updateLeadAction(leadId, formData);

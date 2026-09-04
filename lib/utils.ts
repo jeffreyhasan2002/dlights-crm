@@ -1,4 +1,4 @@
-﻿import { clsx, type ClassValue } from "clsx";
+import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { format, parseISO, isValid, isBefore, startOfDay } from "date-fns";
 
@@ -21,6 +21,21 @@ export function formatCurrency(amount: number | null | undefined, currency = "IN
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: currency,
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+export function parseCurrencyInput(value: string | number | null | undefined): number {
+  if (value === null || value === undefined) return 0;
+  if (typeof value === "number") return isNaN(value) ? 0 : Math.round(value);
+  const cleaned = String(value).replace(/[^0-9.-]/g, "");
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? 0 : Math.round(num);
+}
+
+export function formatIndianCurrencyDisplay(amount: number | null | undefined): string {
+  if (amount === null || amount === undefined || isNaN(amount) || amount === 0) return "";
+  return new Intl.NumberFormat("en-IN", {
     maximumFractionDigits: 0,
   }).format(amount);
 }

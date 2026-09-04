@@ -1,12 +1,24 @@
 "use client";
 
 import * as React from "react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Edit3, Loader2, Sparkles, Clock, Calendar, User, MapPin } from "lucide-react";
+import {
+  Loader2,
+  Calendar,
+  User,
+  IndianRupee,
+  Share2,
+  Sparkles,
+  FileText,
+  Clock,
+  Plus,
+  Trash2,
+  SlidersHorizontal,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -30,35 +42,43 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RequirementSelector } from "@/components/crm/requirement-selector";
+import { EventTypeCombobox } from "@/components/crm/event-type-combobox";
+import { CurrencyInput } from "@/components/crm/currency-input";
 import { updateLeadServerAction } from "@/lib/crm-actions";
-import { LeadWithDetails, EventType, LeadStatus, ContactStatus } from "@/types/crm";
+import { LeadWithDetails, LeadStatus, ContactStatus } from "@/types/crm";
+
+const LEAD_SOURCE_OPTIONS = [
+  "Instagram",
+  "Facebook",
+  "WhatsApp",
+  "Website",
+  "Google",
+  "Referral",
+  "Existing Client",
+  "Walk-in",
+  "Phone Call",
+  "Advertisement",
+  "Wedding Website",
+  "Vendor Referral",
+  "Friend / Family",
+  "Other",
+] as const;
 
 const editLeadSchema = z
   .object({
-    clientName: z.string().min(2, "Client name must be at least 2 characters"),
+    clientName: z.string().min(2, "Client / Couple name must be at least 2 characters"),
     phone: z.string().optional(),
     whatsapp: z.string().optional(),
     email: z.string().email("Invalid email address").optional().or(z.literal("")),
-    location: z.string().optional(),
-    eventType: z.enum([
-      "Wedding",
-      "Engagement",
-      "Sangeet",
-      "Reception",
-      "Muhurtham",
-      "Pre-Wedding",
-      "Post-Wedding",
-      "Birthday",
-      "Baby Shoot",
-      "Portrait",
-      "Corporate",
-      "Other",
-    ]),
+    budget: z.number().optional().default(0),
+    eventType: z.string().min(1, "Event type is required"),
+    customEventType: z.string().optional(),
     eventDate: z.string().optional(),
     eventStartTime: z.string().optional(),
     eventEndTime: z.string().optional(),
-    budget: z.coerce.number().optional().or(z.literal(0)),
-    source: z.string().optional(),
+    location: z.string().optional(),
+    source: z.string().default("Instagram"),
+    customSource: z.string().optional(),
     leadStatus: z.enum([
       "New Enquiry",
       "Contacted",
@@ -83,6 +103,30 @@ const editLeadSchema = z
   })
   .refine(
     (data) => {
+      if (data.eventType === "Other" && (!data.customEventType || !data.customEventType.trim())) {
+        return false;
+      }
+      return true;
+    },
+    {
+      message: 'Please specify the event type when "Other" is selected.',
+      path: ["customEventType"],
+    }
+  )
+  .refine(
+    (data) => {
+      if (data.source === "Other" && (!data.customSource || !data.customSource.trim())) {
+        return false;
+      }
+      return true;
+    },
+    {
+      message: 'Please specify the lead source when "Other" is selected.',
+      path: ["customSource"],
+    }
+  )
+  .refine(
+    (data) => {
       if (data.requirements.includes("Other") && (!data.otherRequirement || !data.otherRequirement.trim())) {
         return false;
       }
@@ -96,6 +140,17 @@ const editLeadSchema = z
 
 type EditLeadFormValues = z.infer<typeof editLeadSchema>;
 
+interface AdditionalEventItem {
+  id: string;
+  eventType: string;
+  customEventType: string;
+  eventDate: string;
+  eventStartTime: string;
+  eventEndTime: string;
+  location: string;
+  notes: string;
+}
+
 interface EditLeadDialogProps {
   lead: LeadWithDetails;
   trigger?: React.ReactNode;
@@ -103,7 +158,12 @@ interface EditLeadDialogProps {
   onOpenChange?: (open: boolean) => void;
 }
 
-export function EditLeadDialog({ lead, trigger, open: controlledOpen, onOpenChange: setControlledOpen }: EditLeadDialogProps) {
+export function EditLeadDialog({
+  lead,
+  trigger,
+  open: controlledOpen,
+  onOpenChange: setControlledOpen,
+}: EditLeadDialogProps) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
@@ -120,6 +180,28 @@ export function EditLeadDialog({ lead, trigger, open: controlledOpen, onOpenChan
     location: null,
   };
 
+  // Determine initial events from lead.events
+  const rawEvents = lead.events || [];
+  const firstEvent = rawEvents[0];
+
+  const [additionalEvents, setAdditionalEvents] = useState<AdditionalEventItem[]>(() => {
+    if (rawEvents.length > 1) {
+      return rawEvents.slice(1).map((ev, idx) => ({
+        id: ev.id || `ev-${idx}-${Date.now()}`,
+        eventType: ev.event_type || "Reception",
+        customEventType: ev.custom_event_type || "",
+        eventDate: ev.event_date || "",
+        eventStartTime: ev.start_time || "",
+        eventEndTime: ev.end_time || "",
+        location: ev.location || "",
+        notes: ev.notes || "",
+      }));
+    }
+    return [];
+  });
+
+  const isStandardSource = LEAD_SOURCE_OPTIONS.includes(lead.source as any);
+
   const {
     register,
     handleSubmit,
@@ -134,13 +216,15 @@ export function EditLeadDialog({ lead, trigger, open: controlledOpen, onOpenChan
       phone: client.phone || "",
       whatsapp: client.whatsapp || "",
       email: client.email || "",
-      location: lead.location || client.location || "",
-      eventType: lead.event_type || "Wedding",
-      eventDate: lead.event_date || "",
-      eventStartTime: lead.event_start_time || "",
-      eventEndTime: lead.event_end_time || "",
-      budget: lead.budget || 0,
-      source: lead.source || "Instagram",
+      budget: Number(lead.budget) || 0,
+      eventType: firstEvent?.event_type || lead.event_type || "Wedding",
+      customEventType: firstEvent?.custom_event_type || "",
+      eventDate: firstEvent?.event_date || lead.event_date || "",
+      eventStartTime: firstEvent?.start_time || lead.event_start_time || "",
+      eventEndTime: firstEvent?.end_time || lead.event_end_time || "",
+      location: firstEvent?.location || lead.location || client.location || "",
+      source: isStandardSource ? (lead.source || "Website") : "Other",
+      customSource: !isStandardSource ? (lead.source || "") : "",
       leadStatus: lead.lead_status || "New Enquiry",
       contactStatus: lead.contact_status || "Not Contacted",
       profitPercentage: lead.profit_percentage ?? 30,
@@ -153,19 +237,25 @@ export function EditLeadDialog({ lead, trigger, open: controlledOpen, onOpenChan
   });
 
   // Re-sync default values when lead changes
-  React.useEffect(() => {
+  useEffect(() => {
+    const currentEvents = lead.events || [];
+    const ev1 = currentEvents[0];
+    const isStdSrc = LEAD_SOURCE_OPTIONS.includes(lead.source as any);
+
     reset({
       clientName: lead.client?.name || "",
       phone: lead.client?.phone || "",
       whatsapp: lead.client?.whatsapp || "",
       email: lead.client?.email || "",
-      location: lead.location || lead.client?.location || "",
-      eventType: lead.event_type || "Wedding",
-      eventDate: lead.event_date || "",
-      eventStartTime: lead.event_start_time || "",
-      eventEndTime: lead.event_end_time || "",
-      budget: lead.budget || 0,
-      source: lead.source || "Instagram",
+      budget: Number(lead.budget) || 0,
+      eventType: ev1?.event_type || lead.event_type || "Wedding",
+      customEventType: ev1?.custom_event_type || "",
+      eventDate: ev1?.event_date || lead.event_date || "",
+      eventStartTime: ev1?.start_time || lead.event_start_time || "",
+      eventEndTime: ev1?.end_time || lead.event_end_time || "",
+      location: ev1?.location || lead.location || lead.client?.location || "",
+      source: isStdSrc ? (lead.source || "Website") : "Other",
+      customSource: !isStdSrc ? (lead.source || "") : "",
       leadStatus: lead.lead_status || "New Enquiry",
       contactStatus: lead.contact_status || "Not Contacted",
       profitPercentage: lead.profit_percentage ?? 30,
@@ -175,53 +265,145 @@ export function EditLeadDialog({ lead, trigger, open: controlledOpen, onOpenChan
       requirements: lead.requirements || [],
       otherRequirement: lead.other_requirement || "",
     });
+
+    if (currentEvents.length > 1) {
+      setAdditionalEvents(
+        currentEvents.slice(1).map((ev, idx) => ({
+          id: ev.id || `ev-${idx}-${Date.now()}`,
+          eventType: ev.event_type || "Reception",
+          customEventType: ev.custom_event_type || "",
+          eventDate: ev.event_date || "",
+          eventStartTime: ev.start_time || "",
+          eventEndTime: ev.end_time || "",
+          location: ev.location || "",
+          notes: ev.notes || "",
+        }))
+      );
+    } else {
+      setAdditionalEvents([]);
+    }
   }, [lead, reset]);
 
   const selectedEventType = watch("eventType");
-  const selectedLeadStatus = watch("leadStatus");
-  const selectedContactStatus = watch("contactStatus");
+  const customEventTypeValue = watch("customEventType") || "";
+  const selectedBudgetValue = watch("budget") || 0;
   const selectedSource = watch("source");
+  const selectedStage = watch("leadStatus");
+  const selectedContactStatus = watch("contactStatus");
   const selectedRequirements = watch("requirements") || [];
   const otherRequirementValue = watch("otherRequirement") || "";
+
+  const handleAddEvent = () => {
+    setAdditionalEvents((prev) => [
+      ...prev,
+      {
+        id: "ev-" + Date.now() + Math.random().toString(36).substring(2, 5),
+        eventType: "Reception",
+        customEventType: "",
+        eventDate: "",
+        eventStartTime: "",
+        eventEndTime: "",
+        location: "",
+        notes: "",
+      },
+    ]);
+  };
+
+  const handleRemoveEvent = (id: string) => {
+    setAdditionalEvents((prev) => prev.filter((ev) => ev.id !== id));
+  };
+
+  const handleUpdateEvent = (id: string, field: keyof AdditionalEventItem, value: string) => {
+    setAdditionalEvents((prev) =>
+      prev.map((ev) => (ev.id === id ? { ...ev, [field]: value } : ev))
+    );
+  };
 
   const onSubmit = async (data: EditLeadFormValues) => {
     try {
       setIsSubmitting(true);
+      const primaryEventType =
+        data.eventType === "Other" && data.customEventType?.trim()
+          ? data.customEventType.trim()
+          : data.eventType;
+
+      const effectiveSource =
+        data.source === "Other" && data.customSource?.trim()
+          ? data.customSource.trim()
+          : data.source;
+
+      // Compile all structured event records
+      const allEventsPayload: Array<{
+        eventType: string;
+        customEventType?: string;
+        eventDate: string;
+        eventStartTime?: string;
+        eventEndTime?: string;
+        location?: string;
+        notes?: string;
+      }> = [];
+
+      if (data.eventType) {
+        allEventsPayload.push({
+          eventType: data.eventType,
+          customEventType: data.customEventType || undefined,
+          eventDate: data.eventDate || "",
+          eventStartTime: data.eventStartTime || undefined,
+          eventEndTime: data.eventEndTime || undefined,
+          location: data.location || undefined,
+          notes: "Primary Function",
+        });
+      }
+
+      for (const aEv of additionalEvents) {
+        if (aEv.eventType) {
+          allEventsPayload.push({
+            eventType: aEv.eventType,
+            customEventType: aEv.customEventType || undefined,
+            eventDate: aEv.eventDate || "",
+            eventStartTime: aEv.eventStartTime || undefined,
+            eventEndTime: aEv.eventEndTime || undefined,
+            location: aEv.location || data.location || undefined,
+            notes: aEv.notes || undefined,
+          });
+        }
+      }
+
       const res = await updateLeadServerAction(lead.id, {
         clientName: data.clientName,
         phone: data.phone || undefined,
         whatsapp: data.whatsapp || undefined,
         email: data.email || undefined,
-        location: data.location || undefined,
-        eventType: data.eventType,
+        eventType: primaryEventType,
+        customEventType: data.customEventType || undefined,
         eventDate: data.eventDate || undefined,
         eventStartTime: data.eventStartTime || undefined,
         eventEndTime: data.eventEndTime || undefined,
-        budget: data.budget ? Number(data.budget) : undefined,
-        source: data.source,
+        location: data.location || undefined,
+        budget: data.budget !== undefined ? Number(data.budget) : undefined,
+        source: effectiveSource,
         leadStatus: data.leadStatus,
         contactStatus: data.contactStatus,
         profitPercentage: data.profitPercentage,
         enquiryMessage: data.enquiryMessage || undefined,
         nextAction: data.nextAction || undefined,
-        nextActionDueAt: data.nextActionDueAt ? new Date(data.nextActionDueAt).toISOString() : undefined,
+        nextActionDueAt: data.nextActionDueAt || undefined,
         requirements: data.requirements,
         otherRequirement: data.otherRequirement || undefined,
+        events: allEventsPayload,
       });
 
       if (res.success) {
-        toast.success("Lead details updated successfully!", {
-          description: "All changes saved to database.",
-        });
+        toast.success("Lead details updated successfully!");
         setOpen(false);
         router.refresh();
       } else {
         toast.error("Failed to update lead", {
-          description: (res as any)?.error || "Database update failed",
+          description: (res as any)?.error || "Database error",
         });
       }
     } catch {
-      toast.error("An error occurred while saving lead changes.");
+      toast.error("An error occurred while updating lead details.");
     } finally {
       setIsSubmitting(false);
     }
@@ -233,32 +415,31 @@ export function EditLeadDialog({ lead, trigger, open: controlledOpen, onOpenChan
         <DialogTrigger asChild>{trigger}</DialogTrigger>
       ) : (
         <DialogTrigger asChild>
-          <Button size="sm" variant="outline" className="gap-1.5 text-xs shadow-2xs">
-            <Edit3 className="h-3.5 w-3.5 text-primary" />
-            <span>Edit Lead</span>
+          <Button variant="outline" size="sm">
+            Edit Details
           </Button>
         </DialogTrigger>
       )}
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-xl font-bold">
-            <Edit3 className="h-5 w-5 text-primary" />
-            Edit Full Lead & Event Specifications
+          <DialogTitle className="text-xl font-bold flex items-center gap-2">
+            <SlidersHorizontal className="h-5 w-5 text-primary" />
+            Edit Client Enquiry & Scope
           </DialogTitle>
-          <DialogDescription className="text-xs">
-            Update complete client information, event timings, requirements, commercial margin, and pipeline status.
+          <DialogDescription>
+            Update client contact info, budget, multiple function dates, requirements, and pipeline status.
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-2">
+        <form onSubmit={handleSubmit(onSubmit as any)} className="space-y-4 pt-2">
           {/* 1. Client Information */}
           <div className="rounded-xl border p-4 bg-muted/20 space-y-3">
             <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
               <User className="h-3.5 w-3.5 text-primary" />
-              <span>Client Information</span>
+              <span>1. Client Information</span>
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 md:col-span-2">
                 <Label htmlFor="editClientName">
                   Client / Couple Name <span className="text-destructive">*</span>
                 </Label>
@@ -282,107 +463,300 @@ export function EditLeadDialog({ lead, trigger, open: controlledOpen, onOpenChan
                 <Input id="editWhatsapp" {...register("whatsapp")} />
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 md:col-span-2">
                 <Label htmlFor="editEmail">Email Address</Label>
                 <Input id="editEmail" type="email" {...register("email")} />
+                {errors.email && (
+                  <p className="text-xs text-destructive">{errors.email.message}</p>
+                )}
               </div>
             </div>
           </div>
 
-          {/* 2. Event & Timings */}
+          {/* 2. Estimated Budget (Separate Section!) */}
           <div className="rounded-xl border p-4 bg-muted/20 space-y-3">
             <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-              <Calendar className="h-3.5 w-3.5 text-primary" />
-              <span>Event Details & Timings</span>
+              <IndianRupee className="h-3.5 w-3.5 text-emerald-600" />
+              <span>2. Estimated Budget</span>
             </h4>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="editEventType">Event Type</Label>
-                <Select
-                  value={selectedEventType}
-                  onValueChange={(val: any) => setValue("eventType", val)}
-                >
-                  <SelectTrigger id="editEventType">
-                    <SelectValue placeholder="Event Type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Wedding">Wedding</SelectItem>
-                    <SelectItem value="Engagement">Engagement</SelectItem>
-                    <SelectItem value="Sangeet">Sangeet</SelectItem>
-                    <SelectItem value="Reception">Reception</SelectItem>
-                    <SelectItem value="Muhurtham">Muhurtham</SelectItem>
-                    <SelectItem value="Pre-Wedding">Pre-Wedding</SelectItem>
-                    <SelectItem value="Post-Wedding">Post-Wedding</SelectItem>
-                    <SelectItem value="Birthday">Birthday</SelectItem>
-                    <SelectItem value="Baby Shoot">Baby Shoot</SelectItem>
-                    <SelectItem value="Portrait">Portrait</SelectItem>
-                    <SelectItem value="Corporate">Corporate</SelectItem>
-                    <SelectItem value="Other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="editEventDate">Event Date</Label>
-                <Input id="editEventDate" type="date" {...register("eventDate")} />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="editLocation">Venue / Location</Label>
-                <Input id="editLocation" {...register("location")} />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="editStartTime" className="flex items-center gap-1 text-xs">
-                  <Clock className="h-3 w-3 text-muted-foreground" />
-                  <span>Start Time</span>
-                </Label>
-                <Input id="editStartTime" type="time" {...register("eventStartTime")} />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="editEndTime" className="flex items-center gap-1 text-xs">
-                  <Clock className="h-3 w-3 text-muted-foreground" />
-                  <span>End Time</span>
-                </Label>
-                <Input id="editEndTime" type="time" {...register("eventEndTime")} />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="editBudget">Estimated Budget (₹)</Label>
-                <Input id="editBudget" type="number" {...register("budget")} />
-              </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="editBudget">Estimated Budget (₹ INR)</Label>
+              <CurrencyInput
+                id="editBudget"
+                value={selectedBudgetValue}
+                onChange={(val) => setValue("budget", val, { shouldValidate: true })}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Formatted in Indian currency (e.g. ₹1,00,000). Stored as pure integer.
+              </p>
             </div>
           </div>
 
-          {/* 3. Requirements Section */}
+          {/* 3. Event Information & Schedule */}
+          <div className="rounded-xl border p-4 bg-muted/20 space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <Calendar className="h-3.5 w-3.5 text-primary" />
+                <span>3. Event Information & Schedule</span>
+              </h4>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleAddEvent}
+                className="h-7 text-xs gap-1 border-dashed font-medium text-primary hover:bg-primary/10"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>Add Event</span>
+              </Button>
+            </div>
+
+            {/* Event 1 */}
+            <div className="p-3.5 rounded-xl border bg-background space-y-3">
+              <div className="flex items-center justify-between border-b pb-2">
+                <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-primary" />
+                  <span>Event 1</span>
+                  {selectedEventType && (
+                    <span className="text-muted-foreground font-normal">
+                      — {selectedEventType === "Other" && customEventTypeValue ? customEventTypeValue : selectedEventType}
+                    </span>
+                  )}
+                </span>
+                <span className="text-[10px] text-muted-foreground uppercase font-semibold">Primary Function</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                <div className="space-y-1.5 md:col-span-3">
+                  <Label>
+                    Event Type <span className="text-destructive">*</span>
+                  </Label>
+                  <EventTypeCombobox
+                    value={selectedEventType}
+                    onChange={(val) => setValue("eventType", val, { shouldValidate: true })}
+                    customValue={customEventTypeValue}
+                    onCustomValueChange={(custom) =>
+                      setValue("customEventType", custom, { shouldValidate: true })
+                    }
+                    error={errors.customEventType?.message}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="editEventDate">Event Date</Label>
+                  <Input id="editEventDate" type="date" {...register("eventDate")} />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="flex items-center gap-1 text-xs">
+                    <Clock className="h-3 w-3 text-muted-foreground" />
+                    <span>Start Time</span>
+                  </Label>
+                  <Input type="time" {...register("eventStartTime")} />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="flex items-center gap-1 text-xs">
+                    <Clock className="h-3 w-3 text-muted-foreground" />
+                    <span>End Time</span>
+                  </Label>
+                  <Input type="time" {...register("eventEndTime")} />
+                </div>
+
+                <div className="space-y-1.5 md:col-span-3">
+                  <Label htmlFor="editLocation">Location / Venue</Label>
+                  <Input id="editLocation" {...register("location")} />
+                </div>
+              </div>
+            </div>
+
+            {/* Subsequent Events (Event 2, Event 3...) */}
+            {additionalEvents.map((aEv, idx) => (
+              <div
+                key={aEv.id}
+                className="p-3.5 rounded-xl border bg-background space-y-3 animate-in fade-in-50 duration-200"
+              >
+                <div className="flex items-center justify-between border-b pb-2">
+                  <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-indigo-500" />
+                    <span>Event {idx + 2}</span>
+                    {aEv.eventType && (
+                      <span className="text-muted-foreground font-normal">
+                        — {aEv.eventType === "Other" && aEv.customEventType ? aEv.customEventType : aEv.eventType}
+                      </span>
+                    )}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleRemoveEvent(aEv.id)}
+                    className="h-6 w-6 p-0 text-destructive hover:bg-destructive/10"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  <div className="space-y-1.5 md:col-span-3">
+                    <Label>
+                      Event Type <span className="text-destructive">*</span>
+                    </Label>
+                    <EventTypeCombobox
+                      value={aEv.eventType}
+                      onChange={(val) => handleUpdateEvent(aEv.id, "eventType", val)}
+                      customValue={aEv.customEventType}
+                      onCustomValueChange={(custom) =>
+                        handleUpdateEvent(aEv.id, "customEventType", custom)
+                      }
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label>Event Date</Label>
+                    <Input
+                      type="date"
+                      value={aEv.eventDate}
+                      onChange={(e) => handleUpdateEvent(aEv.id, "eventDate", e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="flex items-center gap-1 text-xs">
+                      <Clock className="h-3 w-3 text-muted-foreground" />
+                      <span>Start Time</span>
+                    </Label>
+                    <Input
+                      type="time"
+                      value={aEv.eventStartTime}
+                      onChange={(e) => handleUpdateEvent(aEv.id, "eventStartTime", e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="flex items-center gap-1 text-xs">
+                      <Clock className="h-3 w-3 text-muted-foreground" />
+                      <span>End Time</span>
+                    </Label>
+                    <Input
+                      type="time"
+                      value={aEv.eventEndTime}
+                      onChange={(e) => handleUpdateEvent(aEv.id, "eventEndTime", e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-1.5 md:col-span-3">
+                    <Label>Location / Venue</Label>
+                    <Input
+                      placeholder="e.g. Venue (if different)"
+                      value={aEv.location}
+                      onChange={(e) => handleUpdateEvent(aEv.id, "location", e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            <div className="pt-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleAddEvent}
+                className="w-full text-xs gap-1 border-dashed py-2"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>+ Add Event</span>
+              </Button>
+            </div>
+          </div>
+
+          {/* 4. Lead Source */}
           <div className="rounded-xl border p-4 bg-muted/20 space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              Event Requirements Scope
+            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <Share2 className="h-3.5 w-3.5 text-primary" />
+              <span>4. Lead Source</span>
+            </h4>
+            <div className="space-y-2">
+              <Label htmlFor="editSource">Lead Source</Label>
+              <Select
+                value={selectedSource}
+                onValueChange={(val: any) => setValue("source", val, { shouldValidate: true })}
+              >
+                <SelectTrigger id="editSource">
+                  <SelectValue placeholder="Select lead source" />
+                </SelectTrigger>
+                <SelectContent>
+                  {LEAD_SOURCE_OPTIONS.map((src) => (
+                    <SelectItem key={src} value={src}>
+                      {src}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {selectedSource === "Other" && (
+                <div className="space-y-1.5 pt-1 animate-in fade-in-50 duration-200">
+                  <Label htmlFor="editCustomSource" className="text-xs">
+                    Specify Lead Source <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="editCustomSource"
+                    placeholder="e.g. Magazine, Exhibition Stall, Influencer Mention..."
+                    {...register("customSource")}
+                    className={errors.customSource ? "border-destructive" : ""}
+                  />
+                  {errors.customSource && (
+                    <p className="text-xs text-destructive">{errors.customSource.message}</p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 5. Client Event Requirements */}
+          <div className="rounded-xl border p-4 bg-muted/20 space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5 text-primary" />
+              <span>5. Client Event Requirements</span>
             </h4>
             <RequirementSelector
               selectedRequirements={selectedRequirements}
               onChange={(reqs) => setValue("requirements", reqs, { shouldValidate: true })}
               otherRequirement={otherRequirementValue}
-              onOtherRequirementChange={(val) => setValue("otherRequirement", val, { shouldValidate: true })}
+              onOtherRequirementChange={(val) =>
+                setValue("otherRequirement", val, { shouldValidate: true })
+              }
               error={errors.otherRequirement?.message}
             />
           </div>
 
-          {/* 4. CRM Status & Strategy */}
-          <div className="rounded-xl border p-4 bg-muted/20 space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              Pipeline & Commercial Margin
+          {/* 6. Initial Client Note / Message */}
+          <div className="rounded-xl border p-4 bg-muted/20 space-y-2">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <FileText className="h-3.5 w-3.5 text-primary" />
+              <span>6. Initial Client Note / Message</span>
             </h4>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <Textarea id="editEnquiryMessage" rows={3} {...register("enquiryMessage")} />
+          </div>
+
+          {/* 7. Pipeline Stage & Contact Status */}
+          <div className="rounded-xl border p-4 bg-muted/20 space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
+              <span>Pipeline Stage & Contact Status</span>
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="editLeadStatus">Lead Status</Label>
+                <Label htmlFor="editStatus">Pipeline Stage</Label>
                 <Select
-                  value={selectedLeadStatus}
-                  onValueChange={(val: any) => setValue("leadStatus", val)}
+                  value={selectedStage}
+                  onValueChange={(val: LeadStatus) =>
+                    setValue("leadStatus", val, { shouldValidate: true })
+                  }
                 >
-                  <SelectTrigger id="editLeadStatus">
-                    <SelectValue placeholder="Lead Status" />
+                  <SelectTrigger id="editStatus">
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="New Enquiry">New Enquiry</SelectItem>
@@ -400,59 +774,24 @@ export function EditLeadDialog({ lead, trigger, open: controlledOpen, onOpenChan
                 <Label htmlFor="editContactStatus">Contact Status</Label>
                 <Select
                   value={selectedContactStatus}
-                  onValueChange={(val: any) => setValue("contactStatus", val)}
+                  onValueChange={(val: ContactStatus) =>
+                    setValue("contactStatus", val, { shouldValidate: true })
+                  }
                 >
                   <SelectTrigger id="editContactStatus">
-                    <SelectValue placeholder="Contact Status" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Not Contacted">Not Contacted</SelectItem>
-                    <SelectItem value="Contacted – Waiting for Response">Waiting for Response</SelectItem>
+                    <SelectItem value="Contacted – Waiting for Response">
+                      Contacted – Waiting for Response
+                    </SelectItem>
                     <SelectItem value="Responded">Responded</SelectItem>
                     <SelectItem value="No Response">No Response</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="editProfitPct">Default Profit %</Label>
-                <Input
-                  id="editProfitPct"
-                  type="number"
-                  min={0}
-                  max={500}
-                  {...register("profitPercentage")}
-                />
-              </div>
-
-              <div className="space-y-1.5 md:col-span-2">
-                <Label htmlFor="editNextAction">Next Action Step</Label>
-                <Input
-                  id="editNextAction"
-                  placeholder="e.g. Call client to discuss customized cinematography package"
-                  {...register("nextAction")}
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="editNextActionDue">Next Action Due Date</Label>
-                <Input
-                  id="editNextActionDue"
-                  type="datetime-local"
-                  {...register("nextActionDueAt")}
-                />
-              </div>
             </div>
-          </div>
-
-          {/* 5. Notes */}
-          <div className="space-y-1.5">
-            <Label htmlFor="editEnquiryMessage">Enquiry Message / Client Brief</Label>
-            <Textarea
-              id="editEnquiryMessage"
-              rows={2}
-              {...register("enquiryMessage")}
-            />
           </div>
 
           <DialogFooter className="pt-2">
@@ -464,7 +803,7 @@ export function EditLeadDialog({ lead, trigger, open: controlledOpen, onOpenChan
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting} className="min-w-[120px]">
+            <Button type="submit" disabled={isSubmitting} className="min-w-[130px]">
               {isSubmitting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />

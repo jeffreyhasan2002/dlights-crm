@@ -12,7 +12,9 @@ interface NegotiationsViewProps {
 }
 
 export function NegotiationsView({ leads }: NegotiationsViewProps) {
-  const negotiatingLeads = leads.filter((l) => l.lead_status === "Negotiation");
+  const negotiatingLeads = leads.filter(
+    (l) => l.lead_status === "Negotiation" || l.lead_status?.toLowerCase() === "negotiation"
+  );
 
   return (
     <div className="space-y-4">

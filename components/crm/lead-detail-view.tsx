@@ -643,75 +643,99 @@ export function LeadDetailView({ initialLead, profile }: LeadDetailViewProps) {
             </CardContent>
           </Card>
 
-          {/* Multi-Function / Event Schedule (if multiple events exist) */}
-          {Array.isArray(lead.events) && lead.events.length > 0 && (
-            <Card className="shadow-xs border-indigo-200/70 dark:border-indigo-900/40">
-              <CardHeader className="pb-3 border-b bg-indigo-50/20 dark:bg-indigo-950/20">
-                <CardTitle className="text-base font-semibold flex items-center gap-2 text-foreground">
-                  <Calendar className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-                  <span>Function Schedule & Multi-Day Dates</span>
-                  <Badge variant="secondary" className="text-[11px] ml-1.5">
-                    {lead.events.length} {lead.events.length === 1 ? "Function" : "Functions"}
-                  </Badge>
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  All booked ceremonies, timings, and venues scheduled for this client.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-4 space-y-2.5">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {lead.events.map((ev, i) => (
-                    <div
-                      key={ev.id || i}
-                      className="p-3 rounded-xl border bg-muted/20 flex flex-col justify-between space-y-2"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <span className="font-semibold text-foreground text-sm flex items-center gap-1.5">
-                            <Sparkles className="h-3.5 w-3.5 text-indigo-500" />
-                            {ev.event_name || ev.event_type}
-                          </span>
-                          <span className="text-[11px] text-muted-foreground block">
-                            Type: {ev.event_type}
-                          </span>
-                        </div>
-                        <Badge variant="outline" className="text-[10px] uppercase font-bold">
-                          {ev.status || "Scheduled"}
-                        </Badge>
-                      </div>
+          {/* Multi-Function / Event Schedule */}
+          {(() => {
+            const displayedEvents = (Array.isArray(lead.events) && lead.events.length > 0)
+              ? lead.events
+              : (lead.event_date || lead.event_type ? [{
+                  id: "ev-primary-" + lead.id,
+                  lead_id: lead.id,
+                  event_name: lead.event_type || "Primary Shoot",
+                  event_type: lead.event_type || "Other",
+                  custom_event_type: (lead as any).custom_event_type || null,
+                  event_date: lead.event_date,
+                  start_time: lead.event_start_time,
+                  end_time: lead.event_end_time,
+                  location: lead.location,
+                  status: "Upcoming" as const,
+                  notes: null,
+                }] : []);
 
-                      <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t text-muted-foreground">
-                        <div>
-                          <span className="block text-[10px] uppercase tracking-wider font-semibold">Date</span>
-                          <span className="font-medium text-foreground">
-                            {ev.event_date ? formatDate(ev.event_date) : "TBD"}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="block text-[10px] uppercase tracking-wider font-semibold">Timings</span>
-                          <span className="font-medium text-foreground flex items-center gap-1">
-                            <Clock className="h-3 w-3 text-muted-foreground" />
-                            {ev.start_time || ev.end_time ? `${ev.start_time || ""} - ${ev.end_time || ""}` : "TBD"}
-                          </span>
-                        </div>
-                        {ev.location && (
-                          <div className="col-span-2">
-                            <span className="block text-[10px] uppercase tracking-wider font-semibold">Venue</span>
-                            <span className="font-medium text-foreground">{ev.location}</span>
+            if (displayedEvents.length === 0) return null;
+
+            return (
+              <Card className="shadow-xs border-indigo-200/70 dark:border-indigo-900/40">
+                <CardHeader className="pb-3 border-b bg-indigo-50/20 dark:bg-indigo-950/20">
+                  <CardTitle className="text-base font-semibold flex items-center gap-2 text-foreground">
+                    <Calendar className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                    <span>Function Schedule & Multi-Day Dates</span>
+                    <Badge variant="secondary" className="text-[11px] ml-1.5 font-medium">
+                      {displayedEvents.length} {displayedEvents.length === 1 ? "Event" : "Events"}
+                    </Badge>
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    All booked ceremonies, timings, and venues scheduled for this client.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-4 space-y-2.5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {displayedEvents.map((ev, i) => (
+                      <div
+                        key={ev.id || i}
+                        className="p-3.5 rounded-xl border bg-muted/20 flex flex-col justify-between space-y-2.5 shadow-2xs hover:border-indigo-300 dark:hover:border-indigo-800 transition-all"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <Badge className="h-5 px-1.5 text-[10px] font-bold bg-indigo-600 text-white hover:bg-indigo-700">
+                                Event {i + 1}
+                              </Badge>
+                              <span className="font-semibold text-foreground text-sm">
+                                {ev.event_name || ev.event_type}
+                              </span>
+                            </div>
+                            <span className="text-[11px] text-muted-foreground block mt-1">
+                              Type: <strong className="text-foreground">{ev.custom_event_type ? `${ev.custom_event_type} (${ev.event_type})` : ev.event_type}</strong>
+                            </span>
                           </div>
-                        )}
-                        {ev.notes && (
-                          <div className="col-span-2 text-[11px] italic text-muted-foreground">
-                            Note: {ev.notes}
+                          <Badge variant="outline" className="text-[10px] uppercase font-bold shrink-0">
+                            {ev.status || "Upcoming"}
+                          </Badge>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t text-muted-foreground">
+                          <div>
+                            <span className="block text-[10px] uppercase tracking-wider font-semibold">Date</span>
+                            <span className="font-medium text-foreground">
+                              {ev.event_date ? formatDate(ev.event_date) : "TBD"}
+                            </span>
                           </div>
-                        )}
+                          <div>
+                            <span className="block text-[10px] uppercase tracking-wider font-semibold">Timings</span>
+                            <span className="font-medium text-foreground flex items-center gap-1">
+                              <Clock className="h-3 w-3 text-muted-foreground" />
+                              {ev.start_time || ev.end_time ? `${ev.start_time || ""} - ${ev.end_time || ""}` : "TBD"}
+                            </span>
+                          </div>
+                          {ev.location && (
+                            <div className="col-span-2">
+                              <span className="block text-[10px] uppercase tracking-wider font-semibold">Venue / Location</span>
+                              <span className="font-medium text-foreground">{ev.location}</span>
+                            </div>
+                          )}
+                          {ev.notes && (
+                            <div className="col-span-2 text-[11px] italic text-muted-foreground bg-muted/40 p-1.5 rounded">
+                              Note: {ev.notes}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })()}
 
           {/* 3. Deliverables & Production Scope Manager */}
           <DeliverablesEditor
