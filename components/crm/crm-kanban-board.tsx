@@ -58,6 +58,17 @@ const PIPELINE_COLUMNS: { id: LeadStatus; title: string; color: string }[] = [
   { id: "Rejected / Lost", title: "Rejected / Lost", color: "border-zinc-500/30 bg-zinc-50/10" },
 ];
 
+function isLeadInColumn(leadStatus: string | undefined | null, columnId: LeadStatus): boolean {
+  if (!leadStatus) return columnId === "New Enquiry";
+  const s = leadStatus.trim().toLowerCase();
+  const c = columnId.toLowerCase();
+  if (s === c) return true;
+  if (c === "accepted / booked" && (s === "accepted" || s === "booked" || s === "accepted / booked")) return true;
+  if (c === "rejected / lost" && (s === "rejected" || s === "lost" || s === "rejected / lost")) return true;
+  if (c === "follow-up required" && (s === "follow-up" || s === "followup" || s === "follow up required" || s === "follow-up required")) return true;
+  return false;
+}
+
 interface CRMKanbanBoardProps {
   initialLeads: LeadWithDetails[];
   onLeadStatusChange?: (leadId: string, targetStatus: LeadStatus) => void;
@@ -74,24 +85,19 @@ export function CRMKanbanBoard({ initialLeads, onLeadStatusChange }: CRMKanbanBo
   const [statusOverrides, setStatusOverrides] = useState<Record<string, LeadStatus>>({});
 
   React.useEffect(() => {
-    setLeads(
-      initialLeads.map((il) => {
-        const override = statusOverrides[il.id];
-        if (override) {
-          if (il.lead_status === override) {
-            setStatusOverrides((prev) => {
-              const copy = { ...prev };
-              delete copy[il.id];
-              return copy;
-            });
-            return il;
-          }
-          return { ...il, lead_status: override };
+    setLeads(initialLeads);
+    setStatusOverrides((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const il of initialLeads) {
+        if (next[il.id] && next[il.id] === il.lead_status) {
+          delete next[il.id];
+          changed = true;
         }
-        return il;
-      })
-    );
-  }, [initialLeads, statusOverrides]);
+      }
+      return changed ? next : prev;
+    });
+  }, [initialLeads]);
 
   const handleConfirmDelete = async () => {
     if (!leadToDelete) return;
@@ -252,7 +258,7 @@ export function CRMKanbanBoard({ initialLeads, onLeadStatusChange }: CRMKanbanBo
 
       <div className="flex gap-4 overflow-x-auto pb-6 pt-1 select-none min-h-[calc(100vh-280px)]">
         {PIPELINE_COLUMNS.map((column) => {
-          const columnLeads = filteredLeads.filter((l) => l.lead_status === column.id);
+          const columnLeads = filteredLeads.filter((l) => isLeadInColumn(l.lead_status, column.id));
           const totalBudget = columnLeads.reduce((sum, l) => sum + (l.budget || 0), 0);
 
           return (

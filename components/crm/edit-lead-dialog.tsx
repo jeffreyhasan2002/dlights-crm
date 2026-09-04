@@ -18,8 +18,10 @@ import {
   Plus,
   Trash2,
   SlidersHorizontal,
+  Copy,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 
 import {
   Dialog,
@@ -149,6 +151,35 @@ interface AdditionalEventItem {
   eventEndTime: string;
   location: string;
   notes: string;
+  requirements?: string[];
+  otherRequirement?: string;
+}
+
+function parseEventRequirements(ev: any): { requirements: string[]; otherRequirement: string } {
+  let reqs: string[] = [];
+  let otherReq = "";
+
+  if (Array.isArray(ev.requirements) && ev.requirements.length > 0) {
+    reqs = ev.requirements;
+  } else if (ev.notes && typeof ev.notes === "string") {
+    const m = ev.notes.match(/\[REQUIREMENTS\]:\s*(\[[^\]]*\])/);
+    if (m) {
+      try {
+        reqs = JSON.parse(m[1]);
+      } catch {}
+    }
+  }
+
+  if (ev.other_requirement) {
+    otherReq = ev.other_requirement;
+  } else if (ev.notes && typeof ev.notes === "string") {
+    const m = ev.notes.match(/\[OTHER_REQ\]:\s*(.*)$/m);
+    if (m) {
+      otherReq = m[1].trim();
+    }
+  }
+
+  return { requirements: reqs, otherRequirement: otherReq };
 }
 
 interface EditLeadDialogProps {
@@ -180,22 +211,27 @@ export function EditLeadDialog({
     location: null,
   };
 
-  // Determine initial events from lead.events
   const rawEvents = lead.events || [];
   const firstEvent = rawEvents[0];
+  const ev1Parsed = firstEvent ? parseEventRequirements(firstEvent) : { requirements: [], otherRequirement: "" };
 
   const [additionalEvents, setAdditionalEvents] = useState<AdditionalEventItem[]>(() => {
     if (rawEvents.length > 1) {
-      return rawEvents.slice(1).map((ev, idx) => ({
-        id: ev.id || `ev-${idx}-${Date.now()}`,
-        eventType: ev.event_type || "Reception",
-        customEventType: ev.custom_event_type || "",
-        eventDate: ev.event_date || "",
-        eventStartTime: ev.start_time || "",
-        eventEndTime: ev.end_time || "",
-        location: ev.location || "",
-        notes: ev.notes || "",
-      }));
+      return rawEvents.slice(1).map((ev, idx) => {
+        const { requirements, otherRequirement } = parseEventRequirements(ev);
+        return {
+          id: ev.id || `ev-${idx}-${Date.now()}`,
+          eventType: ev.event_type || "Reception",
+          customEventType: ev.custom_event_type || "",
+          eventDate: ev.event_date || "",
+          eventStartTime: ev.start_time || "",
+          eventEndTime: ev.end_time || "",
+          location: ev.location || "",
+          notes: ev.notes || "",
+          requirements,
+          otherRequirement,
+        };
+      });
     }
     return [];
   });
@@ -231,8 +267,8 @@ export function EditLeadDialog({
       enquiryMessage: lead.enquiry_message || "",
       nextAction: lead.next_action || "",
       nextActionDueAt: lead.next_action_due_at ? lead.next_action_due_at.substring(0, 16) : "",
-      requirements: lead.requirements || [],
-      otherRequirement: lead.other_requirement || "",
+      requirements: ev1Parsed.requirements.length > 0 ? ev1Parsed.requirements : (lead.requirements || []),
+      otherRequirement: ev1Parsed.otherRequirement || lead.other_requirement || "",
     },
   });
 
@@ -240,6 +276,7 @@ export function EditLeadDialog({
   useEffect(() => {
     const currentEvents = lead.events || [];
     const ev1 = currentEvents[0];
+    const ev1P = ev1 ? parseEventRequirements(ev1) : { requirements: [], otherRequirement: "" };
     const isStdSrc = LEAD_SOURCE_OPTIONS.includes(lead.source as any);
 
     reset({
@@ -262,22 +299,27 @@ export function EditLeadDialog({
       enquiryMessage: lead.enquiry_message || "",
       nextAction: lead.next_action || "",
       nextActionDueAt: lead.next_action_due_at ? lead.next_action_due_at.substring(0, 16) : "",
-      requirements: lead.requirements || [],
-      otherRequirement: lead.other_requirement || "",
+      requirements: ev1P.requirements.length > 0 ? ev1P.requirements : (lead.requirements || []),
+      otherRequirement: ev1P.otherRequirement || lead.other_requirement || "",
     });
 
     if (currentEvents.length > 1) {
       setAdditionalEvents(
-        currentEvents.slice(1).map((ev, idx) => ({
-          id: ev.id || `ev-${idx}-${Date.now()}`,
-          eventType: ev.event_type || "Reception",
-          customEventType: ev.custom_event_type || "",
-          eventDate: ev.event_date || "",
-          eventStartTime: ev.start_time || "",
-          eventEndTime: ev.end_time || "",
-          location: ev.location || "",
-          notes: ev.notes || "",
-        }))
+        currentEvents.slice(1).map((ev, idx) => {
+          const { requirements, otherRequirement } = parseEventRequirements(ev);
+          return {
+            id: ev.id || `ev-${idx}-${Date.now()}`,
+            eventType: ev.event_type || "Reception",
+            customEventType: ev.custom_event_type || "",
+            eventDate: ev.event_date || "",
+            eventStartTime: ev.start_time || "",
+            eventEndTime: ev.end_time || "",
+            location: ev.location || "",
+            notes: ev.notes || "",
+            requirements,
+            otherRequirement,
+          };
+        })
       );
     } else {
       setAdditionalEvents([]);
@@ -305,6 +347,8 @@ export function EditLeadDialog({
         eventEndTime: "",
         location: "",
         notes: "",
+        requirements: [],
+        otherRequirement: "",
       },
     ]);
   };
@@ -313,7 +357,7 @@ export function EditLeadDialog({
     setAdditionalEvents((prev) => prev.filter((ev) => ev.id !== id));
   };
 
-  const handleUpdateEvent = (id: string, field: keyof AdditionalEventItem, value: string) => {
+  const handleUpdateEvent = (id: string, field: keyof AdditionalEventItem, value: any) => {
     setAdditionalEvents((prev) =>
       prev.map((ev) => (ev.id === id ? { ...ev, [field]: value } : ev))
     );
@@ -341,6 +385,8 @@ export function EditLeadDialog({
         eventEndTime?: string;
         location?: string;
         notes?: string;
+        requirements?: string[];
+        otherRequirement?: string;
       }> = [];
 
       if (data.eventType) {
@@ -352,6 +398,8 @@ export function EditLeadDialog({
           eventEndTime: data.eventEndTime || undefined,
           location: data.location || undefined,
           notes: "Primary Function",
+          requirements: data.requirements || [],
+          otherRequirement: data.otherRequirement || undefined,
         });
       }
 
@@ -365,6 +413,8 @@ export function EditLeadDialog({
             eventEndTime: aEv.eventEndTime || undefined,
             location: aEv.location || data.location || undefined,
             notes: aEv.notes || undefined,
+            requirements: aEv.requirements || [],
+            otherRequirement: aEv.otherRequirement || undefined,
           });
         }
       }
@@ -473,7 +523,7 @@ export function EditLeadDialog({
             </div>
           </div>
 
-          {/* 2. Estimated Budget (Separate Section!) */}
+          {/* 2. Estimated Budget */}
           <div className="rounded-xl border p-4 bg-muted/20 space-y-3">
             <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
               <IndianRupee className="h-3.5 w-3.5 text-emerald-600" />
@@ -511,7 +561,7 @@ export function EditLeadDialog({
               </Button>
             </div>
 
-            {/* Event 1 */}
+            {/* Event 1 Card */}
             <div className="p-3.5 rounded-xl border bg-background space-y-3">
               <div className="flex items-center justify-between border-b pb-2">
                 <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
@@ -566,6 +616,31 @@ export function EditLeadDialog({
                 <div className="space-y-1.5 md:col-span-3">
                   <Label htmlFor="editLocation">Location / Venue</Label>
                   <Input id="editLocation" {...register("location")} />
+                </div>
+
+                {/* Event 1 Deliverables (Right below Event 1) */}
+                <div className="space-y-2 md:col-span-3 pt-3 border-t">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5 text-primary" />
+                      <span>
+                        Event 1 Deliverables ({selectedEventType === "Other" && customEventTypeValue ? customEventTypeValue : selectedEventType})
+                      </span>
+                    </Label>
+                    <Badge variant="outline" className="text-[10px] bg-background">Primary Event</Badge>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Select specific photography, videography, and coverage deliverables for Event 1.
+                  </p>
+                  <RequirementSelector
+                    selectedRequirements={selectedRequirements}
+                    onChange={(reqs) => setValue("requirements", reqs, { shouldValidate: true })}
+                    otherRequirement={otherRequirementValue}
+                    onOtherRequirementChange={(val) =>
+                      setValue("otherRequirement", val, { shouldValidate: true })
+                    }
+                    error={errors.otherRequirement?.message}
+                  />
                 </div>
               </div>
             </div>
@@ -653,6 +728,38 @@ export function EditLeadDialog({
                       onChange={(e) => handleUpdateEvent(aEv.id, "location", e.target.value)}
                     />
                   </div>
+
+                  {/* Per-Ceremony Deliverables for this Event */}
+                  <div className="space-y-2 md:col-span-3 pt-3 border-t">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                        <Sparkles className="h-3 w-3 text-indigo-500" />
+                        <span>Event {idx + 2} Deliverables ({aEv.eventType})</span>
+                      </Label>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-[11px] text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 px-2 py-0 gap-1 font-medium"
+                        onClick={() => {
+                          handleUpdateEvent(aEv.id, "requirements", [...selectedRequirements]);
+                          if (otherRequirementValue) {
+                            handleUpdateEvent(aEv.id, "otherRequirement", otherRequirementValue);
+                          }
+                          toast.info(`Copied deliverables from Event 1 to Event ${idx + 2}`);
+                        }}
+                      >
+                        <Copy className="h-3 w-3" />
+                        <span>Copy from Event 1</span>
+                      </Button>
+                    </div>
+                    <RequirementSelector
+                      selectedRequirements={aEv.requirements || []}
+                      onChange={(reqs) => handleUpdateEvent(aEv.id, "requirements", reqs)}
+                      otherRequirement={aEv.otherRequirement || ""}
+                      onOtherRequirementChange={(val) => handleUpdateEvent(aEv.id, "otherRequirement", val)}
+                    />
+                  </div>
                 </div>
               </div>
             ))}
@@ -714,37 +821,20 @@ export function EditLeadDialog({
             </div>
           </div>
 
-          {/* 5. Client Event Requirements */}
-          <div className="rounded-xl border p-4 bg-muted/20 space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-              <Sparkles className="h-3.5 w-3.5 text-primary" />
-              <span>5. Client Event Requirements</span>
-            </h4>
-            <RequirementSelector
-              selectedRequirements={selectedRequirements}
-              onChange={(reqs) => setValue("requirements", reqs, { shouldValidate: true })}
-              otherRequirement={otherRequirementValue}
-              onOtherRequirementChange={(val) =>
-                setValue("otherRequirement", val, { shouldValidate: true })
-              }
-              error={errors.otherRequirement?.message}
-            />
-          </div>
-
-          {/* 6. Initial Client Note / Message */}
+          {/* 5. Initial Client Note / Message */}
           <div className="rounded-xl border p-4 bg-muted/20 space-y-2">
             <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
               <FileText className="h-3.5 w-3.5 text-primary" />
-              <span>6. Initial Client Note / Message</span>
+              <span>5. Initial Client Note / Message</span>
             </h4>
             <Textarea id="editEnquiryMessage" rows={3} {...register("enquiryMessage")} />
           </div>
 
-          {/* 7. Pipeline Stage & Contact Status */}
+          {/* 6. Pipeline Stage & Contact Status */}
           <div className="rounded-xl border p-4 bg-muted/20 space-y-3">
             <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
               <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
-              <span>Pipeline Stage & Contact Status</span>
+              <span>6. Pipeline Stage & Contact Status</span>
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -790,6 +880,36 @@ export function EditLeadDialog({
                     <SelectItem value="No Response">No Response</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+            </div>
+          </div>
+
+          {/* 7. Next Scheduled Action */}
+          <div className="rounded-xl border p-4 bg-muted/20 space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <Clock className="h-3.5 w-3.5 text-primary" />
+              <span>7. Next Scheduled Action</span>
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label htmlFor="editNextAction">Next Action Plan</Label>
+                <Input
+                  id="editNextAction"
+                  placeholder="e.g. Call client to discuss quotation, share wedding album samples..."
+                  {...register("nextAction")}
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Update next priority action to replace &quot;Initial contact via WhatsApp/Call to share portfolio and brochure&quot;.
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="editNextActionDueAt">Action Due Date & Time (Optional)</Label>
+                <Input
+                  id="editNextActionDueAt"
+                  type="datetime-local"
+                  {...register("nextActionDueAt")}
+                />
               </div>
             </div>
           </div>

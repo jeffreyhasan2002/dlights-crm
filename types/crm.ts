@@ -297,6 +297,8 @@ export interface CRMEvent {
   end_time: string | null;
   location: string | null;
   notes: string | null;
+  requirements?: string[];
+  other_requirement?: string | null;
   status: 'Upcoming' | 'In Progress' | 'Completed' | 'Cancelled' | string;
   sort_order?: number;
   created_at: string;

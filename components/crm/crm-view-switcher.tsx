@@ -64,24 +64,19 @@ export function CRMViewSwitcher({
 
   // Synchronize with serverLeads while preserving recent optimistic status overrides
   useEffect(() => {
-    setLeads(() => {
-      return serverLeads.map((sl) => {
-        const override = statusOverrides[sl.id];
-        if (override) {
-          if (sl.lead_status === override) {
-            setStatusOverrides((prev) => {
-              const copy = { ...prev };
-              delete copy[sl.id];
-              return copy;
-            });
-            return sl;
-          }
-          return { ...sl, lead_status: override };
+    setLeads(serverLeads);
+    setStatusOverrides((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const sl of serverLeads) {
+        if (next[sl.id] && next[sl.id] === sl.lead_status) {
+          delete next[sl.id];
+          changed = true;
         }
-        return sl;
-      });
+      }
+      return changed ? next : prev;
     });
-  }, [serverLeads, statusOverrides]);
+  }, [serverLeads]);
 
   useEffect(() => {
     setFollowUps(serverFollowUps);
@@ -258,20 +253,28 @@ export function CRMViewSwitcher({
 
       const nextFollowUpAt = nextPendingFollowUp?.scheduled_at || lead.next_follow_up_at;
 
-      // Automatically promote to Follow-up Required after 24 hours, on subsequent calendar days, or if follow-up is overdue
       let resolvedStatus = lead.lead_status;
-      const isEarly = resolvedStatus === "New Enquiry" || resolvedStatus === "Contacted";
-      const createdMs = lead.created_at ? new Date(lead.created_at).getTime() : Date.now();
-      const isDifferentDay = new Date(createdMs).toDateString() !== new Date().toDateString();
-      const is24hOld = Date.now() - createdMs >= 24 * 60 * 60 * 1000;
-      const isFollowUpDue = nextFollowUpAt ? new Date(nextFollowUpAt).getTime() <= Date.now() : false;
-
-      if (isEarly && (isDifferentDay || is24hOld || isFollowUpDue)) {
-        resolvedStatus = "Follow-up Required";
-      }
-
       if (statusOverrides[lead.id]) {
         resolvedStatus = statusOverrides[lead.id];
+      } else {
+        const isEarly = resolvedStatus === "New Enquiry" || resolvedStatus === "Contacted";
+        const createdMs = lead.created_at ? new Date(lead.created_at).getTime() : Date.now();
+        const isDifferentDay = new Date(createdMs).toDateString() !== new Date().toDateString();
+        const is24hOld = Date.now() - createdMs >= 24 * 60 * 60 * 1000;
+        const isFollowUpDue = nextFollowUpAt ? new Date(nextFollowUpAt).getTime() <= Date.now() : false;
+
+        if (isEarly && (isDifferentDay || is24hOld || isFollowUpDue)) {
+          resolvedStatus = "Follow-up Required";
+        }
+      }
+
+      // If any quotation is actively negotiating and lead is not closed, align status with Negotiation
+      if (
+        leadQuotations.some((q) => q.status === "Negotiating") &&
+        resolvedStatus !== "Accepted / Booked" &&
+        resolvedStatus !== "Rejected / Lost"
+      ) {
+        resolvedStatus = "Negotiation";
       }
 
       return {
@@ -288,11 +291,19 @@ export function CRMViewSwitcher({
   // Dynamic Live Counts
   const totalEnquiries = enrichedLeads.length;
   const negotiationsCount = enrichedLeads.filter(
-    (l) => l.lead_status === "Negotiation" || l.lead_status?.toLowerCase() === "negotiation"
+    (l) =>
+      l.lead_status === "Negotiation" ||
+      l.lead_status?.toLowerCase() === "negotiation" ||
+      l.quotations?.some((q) => q.status === "Negotiating")
   ).length;
   const bookedCount = enrichedLeads.filter((l) => l.lead_status === "Accepted / Booked").length;
   const lostCount = enrichedLeads.filter((l) => l.lead_status === "Rejected / Lost").length;
-  const pendingFollowUpsCount = followUps.filter((f) => !f.completed_at).length;
+  const followUpsCount = enrichedLeads.filter(
+    (l) =>
+      l.lead_status === "Follow-up Required" ||
+      l.lead_status?.toLowerCase() === "follow-up required" ||
+      l.lead_status?.toLowerCase() === "followup required"
+  ).length;
   const activeQuotationsCount = quotations.length;
 
   return (
@@ -343,7 +354,7 @@ export function CRMViewSwitcher({
               className="data-[state=active]:bg-muted data-[state=active]:text-foreground text-xs px-3 py-1.5 rounded-md gap-1.5"
             >
               <Clock className="h-3.5 w-3.5 text-amber-500" />
-              <span>Follow-ups ({pendingFollowUpsCount})</span>
+              <span>Follow-ups ({followUpsCount})</span>
             </TabsTrigger>
 
             <TabsTrigger

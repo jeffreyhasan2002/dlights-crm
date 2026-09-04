@@ -49,9 +49,12 @@ import {
 
 interface LeadActionDialogsProps {
   lead: LeadWithDetails;
+  singleAction?: "stage" | "follow-up" | "contact" | "quote" | "payment" | "note" | "next-action";
+  trigger?: React.ReactNode;
+  className?: string;
 }
 
-export function LeadActionDialogs({ lead }: LeadActionDialogsProps) {
+export function LeadActionDialogs({ lead, singleAction, trigger, className }: LeadActionDialogsProps) {
   const router = useRouter();
   // Modal states
   const [stageOpen, setStageOpen] = useState(false);
@@ -89,7 +92,18 @@ export function LeadActionDialogs({ lead }: LeadActionDialogsProps) {
   const [payNotes, setPayNotes] = useState("");
 
   const [nextActionText, setNextActionText] = useState(lead.next_action || "");
-  const [nextActionDate, setNextActionDate] = useState("");
+  const [nextActionDate, setNextActionDate] = useState(
+    lead.next_action_due_at ? lead.next_action_due_at.substring(0, 16) : ""
+  );
+
+  React.useEffect(() => {
+    setNextActionText(lead.next_action || "");
+    if (lead.next_action_due_at) {
+      setNextActionDate(lead.next_action_due_at.substring(0, 16));
+    } else {
+      setNextActionDate("");
+    }
+  }, [lead.next_action, lead.next_action_due_at]);
 
   // 1. Stage update
   const handleStageSubmit = async () => {
@@ -255,68 +269,183 @@ export function LeadActionDialogs({ lead }: LeadActionDialogsProps) {
 
   return (
     <>
-      {/* Quick Action Button Group */}
-      <div className="flex flex-wrap items-center gap-2">
+      {/* Single Action Rendering Mode */}
+      {singleAction === "contact" && (
         <Button
           size="sm"
           variant="outline"
-          className="gap-1.5 text-xs"
-          onClick={() => setStageOpen(true)}
-        >
-          <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
-          <span>Stage</span>
-        </Button>
-
-        <Button
-          size="sm"
-          variant="outline"
-          className="gap-1.5 text-xs text-amber-700 hover:text-amber-800 dark:text-amber-300"
-          onClick={() => setFollowUpOpen(true)}
-        >
-          <Clock className="h-3.5 w-3.5" />
-          <span>Follow-up</span>
-        </Button>
-
-        <Button
-          size="sm"
-          variant="outline"
-          className="gap-1.5 text-xs"
+          className={className || "gap-1.5 text-xs h-7 font-medium"}
           onClick={() => setCommOpen(true)}
         >
-          <Phone className="h-3.5 w-3.5 text-blue-500" />
-          <span>Log Contact</span>
+          {trigger || (
+            <>
+              <Phone className="h-3.5 w-3.5 text-sky-500" />
+              <span>Log Contact</span>
+            </>
+          )}
         </Button>
+      )}
 
+      {singleAction === "next-action" && (
         <Button
           size="sm"
           variant="outline"
-          className="gap-1.5 text-xs"
+          className={className || "gap-1.5 text-xs h-7 font-medium"}
+          onClick={() => setNextActionOpen(true)}
+        >
+          {trigger || (
+            <>
+              <Clock className="h-3.5 w-3.5 text-amber-500" />
+              <span>Update Action</span>
+            </>
+          )}
+        </Button>
+      )}
+
+      {singleAction === "follow-up" && (
+        <Button
+          size="sm"
+          variant="outline"
+          className={className || "gap-1.5 text-xs h-7 font-medium"}
+          onClick={() => setFollowUpOpen(true)}
+        >
+          {trigger || (
+            <>
+              <Clock className="h-3.5 w-3.5 text-amber-500" />
+              <span>Schedule Follow-up</span>
+            </>
+          )}
+        </Button>
+      )}
+
+      {singleAction === "quote" && (
+        <Button
+          size="sm"
+          variant="outline"
+          className={className || "gap-1.5 text-xs h-7 font-medium"}
           onClick={() => setQuoteOpen(true)}
         >
-          <FileText className="h-3.5 w-3.5 text-purple-500" />
-          <span>Quotation</span>
+          {trigger || (
+            <>
+              <FileText className="h-3.5 w-3.5 text-purple-500" />
+              <span>Quotation</span>
+            </>
+          )}
         </Button>
+      )}
 
+      {singleAction === "payment" && (
         <Button
           size="sm"
           variant="outline"
-          className="gap-1.5 text-xs text-emerald-700 hover:text-emerald-800 dark:text-emerald-300"
+          className={className || "gap-1.5 text-xs h-7 font-medium"}
           onClick={() => setPaymentOpen(true)}
         >
-          <CreditCard className="h-3.5 w-3.5" />
-          <span>Payment</span>
+          {trigger || (
+            <>
+              <CreditCard className="h-3.5 w-3.5 text-emerald-600" />
+              <span>Payment</span>
+            </>
+          )}
         </Button>
+      )}
 
+      {singleAction === "note" && (
         <Button
           size="sm"
           variant="outline"
-          className="gap-1.5 text-xs"
+          className={className || "gap-1.5 text-xs h-7 font-medium"}
           onClick={() => setNoteOpen(true)}
         >
-          <StickyNote className="h-3.5 w-3.5 text-muted-foreground" />
-          <span>Note</span>
+          {trigger || (
+            <>
+              <StickyNote className="h-3.5 w-3.5 text-muted-foreground" />
+              <span>Note</span>
+            </>
+          )}
         </Button>
-      </div>
+      )}
+
+      {singleAction === "stage" && (
+        <Button
+          size="sm"
+          variant="outline"
+          className={className || "gap-1.5 text-xs h-7 font-medium"}
+          onClick={() => setStageOpen(true)}
+        >
+          {trigger || (
+            <>
+              <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
+              <span>Stage</span>
+            </>
+          )}
+        </Button>
+      )}
+
+      {/* Full Quick Action Button Group */}
+      {!singleAction && (
+        <div className={className || "flex items-center gap-1.5 flex-nowrap"}>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 text-xs h-8 px-2.5 font-medium shrink-0 bg-background hover:bg-muted"
+            onClick={() => setStageOpen(true)}
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5 text-indigo-500" />
+            <span>Stage</span>
+          </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 text-xs h-8 px-2.5 font-medium shrink-0 bg-background hover:bg-muted"
+            onClick={() => setFollowUpOpen(true)}
+          >
+            <Clock className="h-3.5 w-3.5 text-amber-500" />
+            <span>Follow-up</span>
+          </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 text-xs h-8 px-2.5 font-medium shrink-0 bg-background hover:bg-muted"
+            onClick={() => setCommOpen(true)}
+          >
+            <Phone className="h-3.5 w-3.5 text-sky-500" />
+            <span>Log Contact</span>
+          </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 text-xs h-8 px-2.5 font-medium shrink-0 bg-background hover:bg-muted"
+            onClick={() => setQuoteOpen(true)}
+          >
+            <FileText className="h-3.5 w-3.5 text-purple-500" />
+            <span>Quotation</span>
+          </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 text-xs h-8 px-2.5 font-medium shrink-0 bg-background hover:bg-muted"
+            onClick={() => setPaymentOpen(true)}
+          >
+            <CreditCard className="h-3.5 w-3.5 text-emerald-500" />
+            <span>Payment</span>
+          </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 text-xs h-8 px-2.5 font-medium shrink-0 bg-background hover:bg-muted"
+            onClick={() => setNoteOpen(true)}
+          >
+            <StickyNote className="h-3.5 w-3.5 text-amber-500" />
+            <span>Note</span>
+          </Button>
+        </div>
+      )}
 
       {/* 1. Modal: Change Stage */}
       <Dialog open={stageOpen} onOpenChange={setStageOpen}>

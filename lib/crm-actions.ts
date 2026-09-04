@@ -61,11 +61,14 @@ export async function createLeadServerAction(formData: {
   profitPercentage?: number;
   events?: Array<{
     eventType: string;
+    customEventType?: string;
     eventDate: string;
     eventStartTime?: string;
     eventEndTime?: string;
     location?: string;
     notes?: string;
+    requirements?: string[];
+    otherRequirement?: string;
   }>;
 }) {
   const res = await createLeadAction(formData as any);
@@ -107,6 +110,8 @@ export async function updateLeadServerAction(
       eventEndTime?: string;
       location?: string;
       notes?: string;
+      requirements?: string[];
+      otherRequirement?: string;
     }>;
   }
 ) {

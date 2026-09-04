@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { Check, ChevronsUpDown, Search, Sparkles, Plus, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,27 +40,69 @@ export function EventTypeCombobox({
 }: EventTypeComboboxProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const inputRef = useRef<HTMLInputElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (open) {
       setTimeout(() => inputRef.current?.focus(), 50);
     } else {
       setSearch("");
+      setSelectedCategory("All");
     }
   }, [open]);
 
+  // Robust wheel and touch scroll handler to bypass Dialog scroll lock
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el || !open) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.stopPropagation();
+      const { scrollTop, scrollHeight, clientHeight } = el;
+      const isScrollable = scrollHeight > clientHeight;
+
+      if (isScrollable) {
+        const canScrollDown = e.deltaY > 0 && scrollTop + clientHeight < scrollHeight;
+        const canScrollUp = e.deltaY < 0 && scrollTop > 0;
+
+        if (canScrollDown || canScrollUp) {
+          el.scrollTop += e.deltaY;
+          e.preventDefault();
+        }
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      e.stopPropagation();
+    };
+
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    el.addEventListener("touchmove", handleTouchMove, { passive: true });
+
+    return () => {
+      el.removeEventListener("wheel", handleWheel);
+      el.removeEventListener("touchmove", handleTouchMove);
+    };
+  }, [open, search, selectedCategory]);
+
   const cleanSearch = search.trim().toLowerCase();
 
-  // Filtered event types based on query
+  // Filtered event types based on search and category
   const filteredTypes = useMemo(() => {
-    if (!cleanSearch) return MASTER_EVENT_TYPES;
-    return MASTER_EVENT_TYPES.filter(
-      (ev) =>
+    return MASTER_EVENT_TYPES.filter((ev) => {
+      const matchesSearch =
+        !cleanSearch ||
         ev.name.toLowerCase().includes(cleanSearch) ||
-        ev.category.toLowerCase().includes(cleanSearch)
-    );
-  }, [cleanSearch]);
+        ev.category.toLowerCase().includes(cleanSearch);
+
+      const matchesCategory =
+        selectedCategory === "All" || ev.category === selectedCategory;
+
+      return matchesSearch && matchesCategory;
+    });
+  }, [cleanSearch, selectedCategory]);
 
   // Check if search matches an existing event type exactly
   const hasExactMatch = useMemo(() => {
@@ -96,7 +138,7 @@ export function EventTypeCombobox({
 
   return (
     <div className="space-y-2">
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover open={open} onOpenChange={setOpen} modal={true}>
         <PopoverTrigger asChild>
           <Button
             id={id}
@@ -117,16 +159,21 @@ export function EventTypeCombobox({
           </Button>
         </PopoverTrigger>
         <PopoverContent
-          className="w-[320px] sm:w-[380px] p-0 shadow-lg border rounded-xl overflow-hidden"
+          className="w-[320px] sm:w-[390px] p-0 shadow-xl border rounded-xl overflow-hidden bg-popover z-[100]"
           align="start"
+          sideOffset={5}
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          onWheel={(e) => e.stopPropagation()}
+          onTouchMove={(e) => e.stopPropagation()}
+          style={{ pointerEvents: "auto" }}
         >
           {/* Search Header */}
-          <div className="flex items-center border-b px-3 py-2 bg-muted/20">
+          <div className="flex items-center border-b px-3 py-2 bg-muted/30">
             <Search className="mr-2 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             <input
               ref={inputRef}
               type="text"
-              placeholder="Type to search (e.g. Haldi, Baptism, Corporate)..."
+              placeholder="Type to search (~90 ceremonies & shoots)..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full bg-transparent text-xs text-foreground placeholder:text-muted-foreground outline-none"
@@ -140,6 +187,37 @@ export function EventTypeCombobox({
                 Clear
               </button>
             )}
+          </div>
+
+          {/* Quick Category Filter Pills */}
+          <div className="flex items-center gap-1 overflow-x-auto px-2 py-1.5 border-b bg-muted/10 no-scrollbar">
+            <button
+              type="button"
+              onClick={() => setSelectedCategory("All")}
+              className={cn(
+                "px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap transition-colors shrink-0",
+                selectedCategory === "All"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground hover:text-foreground"
+              )}
+            >
+              All Types
+            </button>
+            {MASTER_EVENT_CATEGORIES.map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setSelectedCategory(cat)}
+                className={cn(
+                  "px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap transition-colors shrink-0",
+                  selectedCategory === cat
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {cat}
+              </button>
+            ))}
           </div>
 
           {/* Fallback Option: "+ Add 'XYZ' as Other" */}
@@ -163,11 +241,33 @@ export function EventTypeCombobox({
             </div>
           )}
 
-          {/* List of categories & types */}
-          <div className="max-h-64 overflow-y-auto p-1.5 space-y-2">
-            {filteredTypes.length === 0 && hasExactMatch ? (
-              <div className="p-4 text-center text-xs text-muted-foreground">
-                No matching event types found.
+          {/* Smooth-scrolling Event List */}
+          <div
+            ref={scrollContainerRef}
+            className="max-h-[300px] overflow-y-scroll overscroll-contain p-1.5 space-y-2.5 divide-y divide-border/40"
+            style={{
+              maxHeight: "300px",
+              overflowY: "scroll",
+              WebkitOverflowScrolling: "touch",
+              overscrollBehavior: "contain",
+              scrollbarWidth: "thin",
+            }}
+          >
+            {filteredTypes.length === 0 ? (
+              <div className="p-6 text-center text-xs text-muted-foreground space-y-2">
+                <p>No matching event types found.</p>
+                {search.trim() && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={handleAddCustom}
+                    className="text-xs h-7 gap-1 border-amber-400 text-amber-700 dark:text-amber-300"
+                  >
+                    <Plus className="h-3 w-3" />
+                    <span>Add "{search.trim()}" as Other</span>
+                  </Button>
+                )}
               </div>
             ) : (
               MASTER_EVENT_CATEGORIES.map((cat) => {
@@ -175,10 +275,11 @@ export function EventTypeCombobox({
                 if (itemsInCat.length === 0) return null;
 
                 return (
-                  <div key={cat} className="space-y-1">
-                    <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 flex items-center gap-1.5">
-                      <Tag className="h-2.5 w-2.5" />
+                  <div key={cat} className="pt-2 first:pt-0 space-y-1">
+                    <div className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <Tag className="h-2.5 w-2.5 text-primary" />
                       <span>{cat}</span>
+                      <span className="text-[9px] text-muted-foreground/60">({itemsInCat.length})</span>
                     </div>
                     <div className="grid grid-cols-1 gap-0.5">
                       {itemsInCat.map((item) => {
@@ -189,7 +290,7 @@ export function EventTypeCombobox({
                             type="button"
                             onClick={() => handleSelect(item.name)}
                             className={cn(
-                              "flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs text-left transition-colors",
+                              "flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs text-left transition-colors cursor-pointer",
                               isSelected
                                 ? "bg-primary text-primary-foreground font-semibold shadow-2xs"
                                 : "hover:bg-muted/80 text-foreground"

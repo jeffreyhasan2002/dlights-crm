@@ -253,7 +253,7 @@ export const getLeads = cache(async (filters: GetLeadsFilters = {}): Promise<Lea
           .select("id, owner_id, lead_id, quotation_number, amount, valid_until, status, sent_at, viewed_at, accepted_at, rejected_at, rejection_reason, rejection_reason_other, notes, created_at, updated_at"),
         supabase
           .from("bookings")
-          .select("id, owner_id, lead_id, client_id, booking_status, booking_date, confirmed_at, total_amount, advance_amount, advance_due_date, advance_paid_at, remaining_amount, final_payment_due_date, final_payment_paid_at, notes, created_at, updated_at"),
+          .select("id, owner_id, lead_id, client_id, booking_status, booking_date, confirmed_at, total_amount, advance_amount, advance_due_date, advance_paid_at, remaining_amount, final_payment_due_date, final_payment_paid_at, created_at, updated_at"),
         supabase
           .from("follow_ups")
           .select("id, owner_id, lead_id, scheduled_at, completed_at, contact_method, notes, client_response, created_at, updated_at"),
@@ -278,7 +278,7 @@ export const getLeads = cache(async (filters: GetLeadsFilters = {}): Promise<Lea
           .order("created_at", { ascending: true }),
         supabase
           .from("payments")
-          .select("id, owner_id, booking_id, amount, payment_type, payment_method, payment_date, reference, notes, created_at")
+          .select("id, owner_id, booking_id, lead_id, amount, payment_type, payment_method, payment_date, reference, notes, created_at")
           .order("payment_date", { ascending: false }),
         supabase
           .from("events")
@@ -315,18 +315,31 @@ export const getLeads = cache(async (filters: GetLeadsFilters = {}): Promise<Lea
   }
 
   const paymentMap = new Map<string, Payment[]>();
+  const paymentByLeadMap = new Map<string, Payment[]>();
   for (const p of memoryPayments) {
     if (p.booking_id) {
       const arr = paymentMap.get(p.booking_id) || [];
       arr.push(p);
       paymentMap.set(p.booking_id, arr);
     }
+    if (p.lead_id) {
+      const arr = paymentByLeadMap.get(p.lead_id) || [];
+      arr.push(p);
+      paymentByLeadMap.set(p.lead_id, arr);
+    }
   }
 
   const bookingMap = new Map<string, Booking[]>();
   for (const b of bookingsData) {
     if (b.lead_id) {
-      const bPayments = paymentMap.get(b.id) || [];
+      const bPaymentsFromBooking = paymentMap.get(b.id) || [];
+      const bPaymentsFromLead = paymentByLeadMap.get(b.lead_id) || [];
+      // Combine and deduplicate payments by ID
+      const paymentDedupe = new Map<string, Payment>();
+      for (const p of [...bPaymentsFromBooking, ...bPaymentsFromLead]) {
+        paymentDedupe.set(p.id, p);
+      }
+      const bPayments = Array.from(paymentDedupe.values());
       const totalPaid = bPayments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
       const computedRemaining = Math.max(0, (Number(b.total_amount) || 0) - totalPaid);
       const bookingWithPayments = {
@@ -397,8 +410,27 @@ export const getLeads = cache(async (filters: GetLeadsFilters = {}): Promise<Lea
   const eventMap = new Map<string, CRMEvent[]>();
   for (const ev of memoryEvents) {
     if (ev.lead_id) {
+      let reqs: string[] = Array.isArray((ev as any).requirements) ? (ev as any).requirements : [];
+      let otherReq: string | null = (ev as any).other_requirement || null;
+      if (reqs.length === 0 && ev.notes && typeof ev.notes === "string") {
+        const reqMatch = ev.notes.match(/\[REQUIREMENTS\]:\s*(\[[^\]]*\])/);
+        if (reqMatch) {
+          try {
+            reqs = JSON.parse(reqMatch[1]);
+          } catch {}
+        }
+        const otherMatch = ev.notes.match(/\[OTHER_REQ\]:\s*(.+)$/m);
+        if (otherMatch) {
+          otherReq = otherMatch[1].trim();
+        }
+      }
+      const enrichedEv: CRMEvent = {
+        ...ev,
+        requirements: reqs,
+        other_requirement: otherReq,
+      };
       const arr = eventMap.get(ev.lead_id) || [];
-      arr.push(ev);
+      arr.push(enrichedEv);
       eventMap.set(ev.lead_id, arr);
     }
   }
@@ -447,32 +479,41 @@ export const getLeads = cache(async (filters: GetLeadsFilters = {}): Promise<Lea
       ];
     }
 
-    if (lead.lead_status === "Accepted / Booked" && leadBookings.length === 0) {
-      const quoteAmount = leadQuotations.find((q) => q.status === "Accepted")?.amount || leadQuotations[0]?.amount;
-      const totalAmount = Number(quoteAmount) || Number(lead.budget) || 0;
-      const bPayments = paymentMap.get("b-" + lead.id) || [];
-      const totalPaid = bPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-      const advanceP = bPayments.find((p) => p.payment_type === "Advance");
-      const remainingAmount = Math.max(0, totalAmount - totalPaid);
-      leadBookings = [
-        {
-          id: "b-" + lead.id,
-          lead_id: lead.id,
-          client_id: lead.client_id,
-          owner_id: lead.owner_id,
-          booking_status: "Booking Confirmed",
-          booking_date: (lead.created_at || new Date().toISOString()).split("T")[0],
-          total_amount: totalAmount,
-          advance_amount: advanceP ? advanceP.amount : 0,
-          remaining_amount: remainingAmount,
-          advance_paid_at: advanceP ? advanceP.payment_date : null,
-          final_payment_due_date: lead.event_date || null,
-          notes: "Confirmed booking contract.",
-          payments: bPayments,
-          created_at: lead.created_at || new Date().toISOString(),
-          updated_at: lead.updated_at || new Date().toISOString(),
-        },
-      ];
+    if (leadBookings.length === 0) {
+      const bPaymentsFromBooking = paymentMap.get("b-" + lead.id) || [];
+      const bPaymentsFromLead = paymentByLeadMap.get(lead.id) || [];
+      const paymentDedupe = new Map<string, Payment>();
+      for (const p of [...bPaymentsFromBooking, ...bPaymentsFromLead]) {
+        paymentDedupe.set(p.id, p);
+      }
+      const bPayments = Array.from(paymentDedupe.values());
+
+      if (lead.lead_status === "Accepted / Booked" || bPayments.length > 0) {
+        const quoteAmount = leadQuotations.find((q) => q.status === "Accepted")?.amount || leadQuotations[0]?.amount;
+        const totalAmount = Number(quoteAmount) || Number(lead.budget) || 0;
+        const totalPaid = bPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+        const advanceP = bPayments.find((p) => p.payment_type === "Advance") || (totalPaid > 0 ? bPayments[0] : null);
+        const remainingAmount = Math.max(0, totalAmount - totalPaid);
+        leadBookings = [
+          {
+            id: "b-" + lead.id,
+            lead_id: lead.id,
+            client_id: lead.client_id,
+            owner_id: lead.owner_id,
+            booking_status: "Booking Confirmed",
+            booking_date: (lead.created_at || new Date().toISOString()).split("T")[0],
+            total_amount: totalAmount,
+            advance_amount: advanceP ? advanceP.amount : totalPaid,
+            remaining_amount: remainingAmount,
+            advance_paid_at: advanceP ? advanceP.payment_date : null,
+            final_payment_due_date: lead.event_date || null,
+            notes: "Confirmed booking contract.",
+            payments: bPayments,
+            created_at: lead.created_at || new Date().toISOString(),
+            updated_at: lead.updated_at || new Date().toISOString(),
+          },
+        ];
+      }
     }
 
     let postProdData: any = {};
@@ -606,20 +647,25 @@ export const getLeadById = cache(async (id: string): Promise<LeadWithDetails | n
           { data: evData },
         ] = await Promise.all([
           supabase.from("quotations").select("id, owner_id, lead_id, quotation_number, amount, valid_until, status, sent_at, viewed_at, accepted_at, rejected_at, rejection_reason, rejection_reason_other, notes, created_at, updated_at").eq("lead_id", dbLead.id),
-          supabase.from("bookings").select("id, owner_id, lead_id, client_id, booking_status, booking_date, confirmed_at, total_amount, advance_amount, advance_due_date, advance_paid_at, remaining_amount, final_payment_due_date, final_payment_paid_at, notes, created_at, updated_at").eq("lead_id", dbLead.id),
+          supabase.from("bookings").select("id, owner_id, lead_id, client_id, booking_status, booking_date, confirmed_at, total_amount, advance_amount, advance_due_date, advance_paid_at, remaining_amount, final_payment_due_date, final_payment_paid_at, created_at, updated_at").eq("lead_id", dbLead.id),
           supabase.from("follow_ups").select("id, owner_id, lead_id, scheduled_at, completed_at, contact_method, notes, client_response, created_at, updated_at").eq("lead_id", dbLead.id),
           supabase.from("communications").select("id, owner_id, lead_id, contact_method, direction, message, client_response, created_at").eq("lead_id", dbLead.id),
           supabase.from("activities").select("id, owner_id, lead_id, client_id, activity_type, title, description, contact_method, client_response, metadata, created_at").eq("lead_id", dbLead.id).order("created_at", { ascending: false }),
           supabase.from("notes").select("id, owner_id, lead_id, content, created_at, updated_at").eq("lead_id", dbLead.id).order("created_at", { ascending: false }),
           supabase.from("lead_deliverables").select("id, lead_id, owner_id, name, type, quantity, notes, is_custom, created_at, updated_at").eq("lead_id", dbLead.id).order("created_at", { ascending: true }),
           supabase.from("lead_expenses").select("id, lead_id, owner_id, expense_name, expense_category, amount, notes, is_custom, created_at, updated_at").eq("lead_id", dbLead.id).order("created_at", { ascending: true }),
-          supabase.from("payments").select("id, owner_id, booking_id, amount, payment_type, payment_method, payment_date, reference, notes, created_at").order("payment_date", { ascending: false }),
+          supabase.from("payments").select("id, owner_id, booking_id, lead_id, amount, payment_type, payment_method, payment_date, reference, notes, created_at").order("payment_date", { ascending: false }),
           supabase.from("events").select("*").eq("lead_id", dbLead.id).order("event_date", { ascending: true }),
         ]);
 
         let paymentsList = (pData as any) || [];
         let resolvedBookings: any[] = bData || [];
-        if (dbLead.lead_status === "Accepted / Booked" && resolvedBookings.length === 0) {
+
+        const paymentsForThisLead = paymentsList.filter(
+          (p: any) => p.lead_id === dbLead.id || (resolvedBookings.some((b: any) => b.id === p.booking_id)) || p.booking_id === "b-" + dbLead.id
+        );
+
+        if (resolvedBookings.length === 0 && (dbLead.lead_status === "Accepted / Booked" || paymentsForThisLead.length > 0)) {
           const quoteAmount = (qData as any[])?.find((q) => q.status === "Accepted")?.amount || (qData as any[])?.[0]?.amount;
           const totalAmount = Number(quoteAmount) || Number(dbLead.budget) || 0;
           resolvedBookings = [
@@ -644,12 +690,15 @@ export const getLeadById = cache(async (id: string): Promise<LeadWithDetails | n
         }
 
         resolvedBookings = resolvedBookings.map((b: any) => {
-          const bPayments = paymentsList.filter((p: any) => p.booking_id === b.id);
+          const bPayments = paymentsList.filter((p: any) => p.booking_id === b.id || p.lead_id === dbLead.id);
           const totalPaid = bPayments.reduce((acc: number, p: any) => acc + (Number(p.amount) || 0), 0);
           const computedRemaining = Math.max(0, (Number(b.total_amount) || 0) - totalPaid);
+          const advanceP = bPayments.find((p: any) => p.payment_type === "Advance") || (totalPaid > 0 ? bPayments[0] : null);
           return {
             ...b,
             payments: bPayments,
+            advance_amount: advanceP ? (advanceP.amount || totalPaid) : b.advance_amount,
+            advance_paid_at: advanceP ? advanceP.payment_date : b.advance_paid_at,
             remaining_amount: computedRemaining,
           };
         });
@@ -693,7 +742,27 @@ export const getLeadById = cache(async (id: string): Promise<LeadWithDetails | n
           notes: (nData as any) || [],
           deliverables: (delData as any) || [],
           expenses: (expData as any) || [],
-          events: (evData as any) || memoryEvents.filter((e) => e.lead_id === dbLead.id),
+          events: (((evData as any) || memoryEvents.filter((e) => e.lead_id === dbLead.id)) as any[]).map((e) => {
+            let reqs: string[] = Array.isArray(e.requirements) ? e.requirements : [];
+            let otherReq: string | null = e.other_requirement || null;
+            if (reqs.length === 0 && e.notes && typeof e.notes === "string") {
+              const reqMatch = e.notes.match(/\[REQUIREMENTS\]:\s*(\[[^\]]*\])/);
+              if (reqMatch) {
+                try {
+                  reqs = JSON.parse(reqMatch[1]);
+                } catch {}
+              }
+              const otherMatch = e.notes.match(/\[OTHER_REQ\]:\s*(.+)$/m);
+              if (otherMatch) {
+                otherReq = otherMatch[1].trim();
+              }
+            }
+            return {
+              ...e,
+              requirements: reqs,
+              other_requirement: otherReq,
+            };
+          }),
         };
       }
     } catch (err) {
@@ -814,10 +883,10 @@ export const getBookings = cache(async (): Promise<Booking[]> => {
       const [{ data: bData }, { data: pData }] = await Promise.all([
         supabase
           .from("bookings")
-          .select("id, owner_id, lead_id, client_id, booking_status, booking_date, confirmed_at, total_amount, advance_amount, advance_due_date, advance_paid_at, remaining_amount, final_payment_due_date, final_payment_paid_at, notes, created_at, updated_at"),
+          .select("id, owner_id, lead_id, client_id, booking_status, booking_date, confirmed_at, total_amount, advance_amount, advance_due_date, advance_paid_at, remaining_amount, final_payment_due_date, final_payment_paid_at, created_at, updated_at"),
         supabase
           .from("payments")
-          .select("id, owner_id, booking_id, amount, payment_type, payment_method, payment_date, reference, notes, created_at"),
+          .select("id, owner_id, booking_id, lead_id, amount, payment_type, payment_method, payment_date, reference, notes, created_at"),
       ]);
       if (bData) rawBookings = bData as any[];
       if (pData) rawPayments = pData as any[];
@@ -827,11 +896,17 @@ export const getBookings = cache(async (): Promise<Booking[]> => {
   const leadMap = new Map(leads.map((l) => [l.id, l]));
   const clientMap = new Map(clients.map((c) => [c.id, c]));
   const paymentMap = new Map<string, Payment[]>();
+  const paymentByLeadMap = new Map<string, Payment[]>();
   for (const p of rawPayments) {
     if (p.booking_id) {
       const arr = paymentMap.get(p.booking_id) || [];
       arr.push(p);
       paymentMap.set(p.booking_id, arr);
+    }
+    if (p.lead_id) {
+      const arr = paymentByLeadMap.get(p.lead_id) || [];
+      arr.push(p);
+      paymentByLeadMap.set(p.lead_id, arr);
     }
   }
 
@@ -841,9 +916,13 @@ export const getBookings = cache(async (): Promise<Booking[]> => {
       const acceptedQuote = (l.quotations || []).find((q) => q.status === "Accepted");
       const latestQuote = (l.quotations || [])[0];
       const totalAmount = Number(acceptedQuote?.amount) || Number(latestQuote?.amount) || Number(l.budget) || 0;
-      const bPayments = paymentMap.get("b-" + l.id) || [];
+      const bPaymentsFromBooking = paymentMap.get("b-" + l.id) || [];
+      const bPaymentsFromLead = paymentByLeadMap.get(l.id) || [];
+      const dedupe = new Map<string, Payment>();
+      for (const p of [...bPaymentsFromBooking, ...bPaymentsFromLead]) dedupe.set(p.id, p);
+      const bPayments = Array.from(dedupe.values());
       const totalPaid = bPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-      const advanceP = bPayments.find((p) => p.payment_type === "Advance");
+      const advanceP = bPayments.find((p) => p.payment_type === "Advance") || (totalPaid > 0 ? bPayments[0] : null);
       const remainingAmount = Math.max(0, totalAmount - totalPaid);
 
       rawBookings.push({
@@ -854,7 +933,7 @@ export const getBookings = cache(async (): Promise<Booking[]> => {
         booking_status: "Booking Confirmed",
         booking_date: (l.created_at || new Date().toISOString()).split("T")[0],
         total_amount: totalAmount,
-        advance_amount: advanceP ? advanceP.amount : 0,
+        advance_amount: advanceP ? advanceP.amount : totalPaid,
         remaining_amount: remainingAmount,
         advance_paid_at: advanceP ? advanceP.payment_date : null,
         final_payment_due_date: l.event_date || null,
@@ -866,9 +945,13 @@ export const getBookings = cache(async (): Promise<Booking[]> => {
   }
 
   return rawBookings.map((b) => {
-    const bPayments = paymentMap.get(b.id) || [];
+    const bPaymentsFromBooking = paymentMap.get(b.id) || [];
+    const bPaymentsFromLead = paymentByLeadMap.get(b.lead_id) || [];
+    const dedupe = new Map<string, Payment>();
+    for (const p of [...bPaymentsFromBooking, ...bPaymentsFromLead]) dedupe.set(p.id, p);
+    const bPayments = Array.from(dedupe.values());
     const totalPaid = bPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-    const advanceP = bPayments.find((p) => p.payment_type === "Advance");
+    const advanceP = bPayments.find((p) => p.payment_type === "Advance") || (totalPaid > 0 ? bPayments[0] : null);
     const lead = leadMap.get(b.lead_id);
     const quoteAmount = lead?.quotations?.find((q) => q.status === "Accepted")?.amount || lead?.quotations?.[0]?.amount;
     const computedTotal = Number(b.total_amount) || Number(quoteAmount) || Number(lead?.budget) || 0;
@@ -1009,11 +1092,14 @@ export async function createLeadAction(data: {
   profitPercentage?: number;
   events?: Array<{
     eventType: string;
+    customEventType?: string;
     eventDate: string;
     eventStartTime?: string;
     eventEndTime?: string;
     location?: string;
     notes?: string;
+    requirements?: string[];
+    otherRequirement?: string;
   }>;
 }) {
   const cId = "c-" + Date.now();
@@ -1230,20 +1316,49 @@ export async function createLeadAction(data: {
               }] : []);
 
           if (eventsList.length > 0) {
-            const dbEvents = eventsList.map((ev) => ({
-              owner_id: ownerId,
-              client_id: dbClient.id,
-              lead_id: dbLead.id,
-              event_name: `${ev.eventType} - ${data.clientName}`,
-              event_type: ev.eventType,
-              event_date: ev.eventDate,
-              start_time: ev.eventStartTime || null,
-              end_time: ev.eventEndTime || null,
-              location: ev.location || data.location || null,
-              status: "Scheduled",
-              notes: ev.notes || null,
+            const dbEvents = eventsList.map((ev, idx) => {
+              const reqs = ev.requirements && ev.requirements.length > 0 ? ev.requirements : [];
+              let combinedNotes = ev.notes || "";
+              if (reqs.length > 0) {
+                combinedNotes = combinedNotes
+                  ? `${combinedNotes}\n[REQUIREMENTS]: ${JSON.stringify(reqs)}`
+                  : `[REQUIREMENTS]: ${JSON.stringify(reqs)}`;
+              }
+              if (ev.otherRequirement) {
+                combinedNotes = `${combinedNotes}\n[OTHER_REQ]: ${ev.otherRequirement}`;
+              }
+              return {
+                owner_id: ownerId,
+                client_id: dbClient.id,
+                lead_id: dbLead.id,
+                event_name: `${ev.eventType} - ${data.clientName}`,
+                event_type: ev.eventType,
+                event_date: ev.eventDate,
+                start_time: ev.eventStartTime || null,
+                end_time: ev.eventEndTime || null,
+                location: ev.location || data.location || null,
+                status: "Scheduled",
+                notes: combinedNotes || null,
+                custom_event_type: ev.customEventType || null,
+                sort_order: idx,
+              };
+            });
+
+            // Try inserting with requirements array if supported, else fallback to dbEvents
+            const dbEventsWithRequirements = dbEvents.map((e, idx) => ({
+              ...e,
+              requirements: eventsList[idx]?.requirements || [],
             }));
-            const { data: insertedEvents } = await supabase.from("events").insert(dbEvents).select();
+
+            let insertedEvents: any[] | null = null;
+            const { data: insWithReq, error: reqErr } = await supabase.from("events").insert(dbEventsWithRequirements).select();
+            if (!reqErr && insWithReq) {
+              insertedEvents = insWithReq;
+            } else {
+              const { data: insBasic } = await supabase.from("events").insert(dbEvents).select();
+              insertedEvents = insBasic;
+            }
+
             if (insertedEvents) {
               memoryEvents.unshift(...(insertedEvents as any[]));
             }
@@ -1280,12 +1395,15 @@ export async function createLeadAction(data: {
       lead_id: lId,
       event_name: `${ev.eventType} - ${data.clientName}`,
       event_type: ev.eventType as any,
+      custom_event_type: ev.customEventType || null,
       event_date: ev.eventDate,
       start_time: ev.eventStartTime || null,
       end_time: ev.eventEndTime || null,
       location: ev.location || data.location || null,
       status: "Upcoming",
       notes: ev.notes || null,
+      requirements: ev.requirements || [],
+      other_requirement: ev.otherRequirement || null,
       created_at: now,
       updated_at: now,
     });
@@ -1464,24 +1582,37 @@ export async function updateLeadAction(leadId: string, data: {
       if (data.events && Array.isArray(data.events)) {
         await supabase.from("events").delete().eq("lead_id", leadId);
 
-        const dbEvents = data.events.map((ev, idx) => ({
-          owner_id: ownerId,
-          client_id: dbLead?.client_id || null,
-          lead_id: leadId,
-          event_name: ev.eventName || (ev.eventType === "Other" && ev.customEventType ? ev.customEventType : ev.eventType),
-          event_type: ev.eventType,
-          event_date: ev.eventDate || null,
-          start_time: ev.eventStartTime || null,
-          end_time: ev.eventEndTime || null,
-          location: ev.location || data.location || null,
-          status: "Upcoming",
-          notes: ev.notes || null,
-        }));
+        const dbEvents = data.events.map((ev: any, idx: number) => {
+          const reqs = ev.requirements && ev.requirements.length > 0 ? ev.requirements : [];
+          let combinedNotes = ev.notes || "";
+          if (reqs.length > 0) {
+            combinedNotes = combinedNotes
+              ? `${combinedNotes}\n[REQUIREMENTS]: ${JSON.stringify(reqs)}`
+              : `[REQUIREMENTS]: ${JSON.stringify(reqs)}`;
+          }
+          if (ev.otherRequirement) {
+            combinedNotes = `${combinedNotes}\n[OTHER_REQ]: ${ev.otherRequirement}`;
+          }
+          return {
+            owner_id: ownerId,
+            client_id: dbLead?.client_id || null,
+            lead_id: leadId,
+            event_name: ev.eventName || (ev.eventType === "Other" && ev.customEventType ? ev.customEventType : ev.eventType),
+            event_type: ev.eventType,
+            event_date: ev.eventDate || null,
+            start_time: ev.eventStartTime || null,
+            end_time: ev.eventEndTime || null,
+            location: ev.location || data.location || null,
+            status: "Upcoming",
+            notes: combinedNotes || null,
+          };
+        });
 
-        const dbEventsWithExtras = data.events.map((ev, idx) => ({
+        const dbEventsWithExtras = data.events.map((ev: any, idx: number) => ({
           ...dbEvents[idx],
           custom_event_type: ev.customEventType || null,
           sort_order: ev.sortOrder ?? idx,
+          requirements: ev.requirements || [],
         }));
 
         let { data: insEvents, error: evErr } = await supabase.from("events").insert(dbEventsWithExtras).select();
@@ -1650,7 +1781,7 @@ export async function updateContactStatusAction(leadId: string, status: ContactS
 
 export async function ensureBookingForLead(leadId: string): Promise<Booking | null> {
   const existingMem = memoryBookings.find((b) => b.lead_id === leadId);
-  if (existingMem) return existingMem;
+  if (existingMem && !existingMem.id.startsWith("b-")) return existingMem;
 
   const lead = memoryLeads.find((l) => l.id === leadId);
   const now = new Date().toISOString();
@@ -1661,7 +1792,9 @@ export async function ensureBookingForLead(leadId: string): Promise<Booking | nu
       const supabase = await createServerSupabase();
       const { data: dbBooking } = await supabase.from("bookings").select("*").eq("lead_id", leadId).maybeSingle();
       if (dbBooking) {
-        memoryBookings.unshift(dbBooking);
+        const idx = memoryBookings.findIndex((b) => b.lead_id === leadId);
+        if (idx >= 0) memoryBookings[idx] = dbBooking;
+        else memoryBookings.unshift(dbBooking);
         return dbBooking;
       }
 
@@ -1689,13 +1822,18 @@ export async function ensureBookingForLead(leadId: string): Promise<Booking | nu
             remaining_amount: remainingAmount,
             advance_paid_at: null,
             final_payment_due_date: dbLead.event_date || null,
-            notes: "Confirmed booking agreement.",
           })
           .select()
           .single();
 
+        if (error) {
+          console.error("Error creating booking in Supabase:", error);
+        }
+
         if (newDbBooking) {
-          memoryBookings.unshift(newDbBooking);
+          const idx = memoryBookings.findIndex((b) => b.lead_id === leadId);
+          if (idx >= 0) memoryBookings[idx] = newDbBooking;
+          else memoryBookings.unshift(newDbBooking);
           return newDbBooking;
         }
       }
@@ -1732,10 +1870,37 @@ export async function ensureBookingForLead(leadId: string): Promise<Booking | nu
   return null;
 }
 
+export function getNextActionForStage(status: LeadStatus, currentNextAction?: string | null): string | undefined {
+  const isDefaultInitial = !currentNextAction || currentNextAction.includes("Initial contact via WhatsApp/Call");
+  if (!isDefaultInitial && status !== "Accepted / Booked" && status !== "Rejected / Lost") {
+    return undefined;
+  }
+  switch (status) {
+    case "Contacted":
+      return "Discuss requirements & share customized portfolio";
+    case "Follow-up Required":
+      return "Follow up with client on requirements & quotation";
+    case "Quotation Sent":
+      return "Follow up on proposal & quotation";
+    case "Negotiation":
+      return "Review terms & finalize pricing agreement";
+    case "Accepted / Booked":
+      return "Prepare production contract & schedule shoot";
+    case "Rejected / Lost":
+      return "Deal closed without conversion";
+    default:
+      return undefined;
+  }
+}
+
 export async function updateLeadStatusAction(leadId: string, status: LeadStatus) {
   const lead = memoryLeads.find((l) => l.id === leadId);
+  const nextStageAction = getNextActionForStage(status, lead?.next_action);
   if (lead) {
     lead.lead_status = status;
+    if (nextStageAction) {
+      lead.next_action = nextStageAction;
+    }
     lead.updated_at = new Date().toISOString();
   }
 
@@ -1760,12 +1925,17 @@ export async function updateLeadStatusAction(leadId: string, status: LeadStatus)
       const supabase = await createServerSupabase();
       const ownerId = await getAuthenticatedOwnerId();
 
+      const leadStatusUpdates: Record<string, any> = {
+        lead_status: status,
+        updated_at: new Date().toISOString(),
+      };
+      if (nextStageAction) {
+        leadStatusUpdates.next_action = nextStageAction;
+      }
+
       const { error: leadErr } = await supabase
         .from("leads")
-        .update({
-          lead_status: status,
-          updated_at: new Date().toISOString(),
-        })
+        .update(leadStatusUpdates)
         .eq("id", leadId);
 
       if (leadErr) {
@@ -1962,7 +2132,6 @@ export async function acceptQuotationAction(quotationId: string) {
               remaining_amount: remainingAmount,
               advance_paid_at: null,
               final_payment_due_date: dbLead.event_date || null,
-              notes: "35% advance token required to lock shoot dates.",
             });
           }
 
@@ -1994,6 +2163,9 @@ export async function sendQuotationAction(quotationId: string) {
     const lead = memoryLeads.find((l) => l.id === quotation.lead_id);
     if (lead) {
       lead.lead_status = "Quotation Sent";
+      if (!lead.next_action || lead.next_action.includes("Initial contact via WhatsApp/Call")) {
+        lead.next_action = "Follow up on proposal & quotation";
+      }
       lead.updated_at = new Date().toISOString();
     }
   }
@@ -2018,6 +2190,7 @@ export async function sendQuotationAction(quotationId: string) {
           .from("leads")
           .update({
             lead_status: "Quotation Sent",
+            next_action: "Follow up on proposal & quotation",
             updated_at: new Date().toISOString(),
           })
           .eq("id", dbQ.lead_id);
@@ -2304,22 +2477,25 @@ export async function recordPaymentAction(data: {
   }
 
   const live = await isSupabaseLive();
-  if (live && targetBookingId) {
+  if (live) {
     try {
       const supabase = await createServerSupabase();
       const ownerId = await getAuthenticatedOwnerId();
 
-      let { data: dbB } = await supabase.from("bookings").select("*").eq("id", targetBookingId).maybeSingle();
+      let dbB: any = null;
+      if (targetBookingId && !targetBookingId.startsWith("b-")) {
+        const { data: foundB } = await supabase.from("bookings").select("*").eq("id", targetBookingId).maybeSingle();
+        dbB = foundB;
+      }
       if (!dbB && data.leadId) {
         const ensured = await ensureBookingForLead(data.leadId);
-        if (ensured) {
+        if (ensured && !ensured.id.startsWith("b-")) {
           targetBookingId = ensured.id;
-          const { data: refreshedB } = await supabase.from("bookings").select("*").eq("id", targetBookingId).maybeSingle();
-          dbB = refreshedB;
+          dbB = ensured;
         }
       }
 
-      if (targetBookingId) {
+      if (dbB && targetBookingId) {
         const basePayment = {
           booking_id: targetBookingId,
           owner_id: ownerId,
@@ -2341,68 +2517,62 @@ export async function recordPaymentAction(data: {
           .single();
 
         if (pErr) {
-          const retry = await supabase
-            .from("payments")
-            .insert(basePayment)
-            .select()
-            .single();
-          dbP = retry.data;
-          pErr = retry.error;
-        }
-
-        if (pErr) {
           console.error("Supabase payment insert error:", pErr);
         }
 
-        if (dbB) {
-          const newRem = Math.max(0, (Number(dbB.remaining_amount) || 0) - data.amount);
-          const updates: any = {
-            remaining_amount: newRem,
-            updated_at: now,
-          };
-          if (data.paymentType === "Advance" && !dbB.advance_paid_at) {
-            updates.advance_paid_at = now;
-          }
-
-          await supabase.from("bookings").update(updates).eq("id", targetBookingId);
-
-          if (dbB.lead_id) {
-            await supabase
-              .from("leads")
-              .update({
-                lead_status: "Accepted / Booked",
-                updated_at: now,
-              })
-              .eq("id", dbB.lead_id);
-
-            const memL = memoryLeads.find((l) => l.id === dbB.lead_id);
-            if (memL) {
-              memL.lead_status = "Accepted / Booked";
-              memL.updated_at = now;
-            }
-          }
-
-          await recordSupabaseActivity(supabase, {
-            leadId: dbB.lead_id,
-            clientId: dbB.client_id,
-            ownerId,
-            activityType: "PAYMENT_RECEIVED",
-            title: "Payment Received",
-            description: `Payment receipt of ₹${data.amount.toLocaleString("en-IN")} logged via ${data.paymentMethod}.`,
-            metadata: { amount: data.amount, method: data.paymentMethod },
-          });
-
-          const updatedBooking = {
-            ...dbB,
-            ...updates,
-          };
-          return { success: true, payment: dbP || newPayment, updatedBooking };
+        const newRem = Math.max(0, (Number(dbB.remaining_amount) || 0) - data.amount);
+        const newAdv = (Number(dbB.advance_amount) || 0) + data.amount;
+        const updates: any = {
+          remaining_amount: newRem,
+          updated_at: now,
+        };
+        if (data.paymentType === "Advance" || !dbB.advance_paid_at) {
+          updates.advance_paid_at = dbB.advance_paid_at || now;
+          updates.advance_amount = newAdv;
         }
 
-        if (dbP) return { success: true, payment: dbP };
+        await supabase.from("bookings").update(updates).eq("id", targetBookingId);
+
+        if (dbB.lead_id) {
+          await supabase
+            .from("leads")
+            .update({
+              lead_status: "Accepted / Booked",
+              updated_at: now,
+            })
+            .eq("id", dbB.lead_id);
+
+          const memL = memoryLeads.find((l) => l.id === dbB.lead_id);
+          if (memL) {
+            memL.lead_status = "Accepted / Booked";
+            memL.updated_at = now;
+          }
+        }
+
+        await recordSupabaseActivity(supabase, {
+          leadId: dbB.lead_id,
+          clientId: dbB.client_id,
+          ownerId,
+          activityType: "PAYMENT_RECEIVED",
+          title: "Payment Received",
+          description: `Payment receipt of ₹${data.amount.toLocaleString("en-IN")} logged via ${data.paymentMethod}.`,
+          metadata: { amount: data.amount, method: data.paymentMethod },
+        });
+
+        const updatedBooking = {
+          ...dbB,
+          ...updates,
+          advance_amount: updates.advance_amount ?? dbB.advance_amount,
+        };
+
+        if (dbP) {
+          memoryPayments.unshift(dbP);
+        }
+
+        return { success: true, payment: dbP || newPayment, updatedBooking };
       }
     } catch (err) {
-      console.error("Error recording payment in Supabase:", err);
+      console.error("Error in recordPaymentAction Supabase flow:", err);
     }
   }
 
@@ -2660,9 +2830,13 @@ export async function logCommunicationAction(data: {
   memoryCommunications.unshift(newComm);
 
   const lead = memoryLeads.find((l) => l.id === data.leadId);
+  const shouldAdvanceAction = !lead?.next_action || lead.next_action.includes("Initial contact via WhatsApp/Call");
   if (lead) {
     lead.last_contacted_at = new Date().toISOString();
     lead.contact_status = data.clientResponse ? "Responded" : "Contacted – Waiting for Response";
+    if (shouldAdvanceAction) {
+      lead.next_action = "Follow up on discussion & share quotation";
+    }
     lead.updated_at = new Date().toISOString();
   }
 
@@ -2685,13 +2859,18 @@ export async function logCommunicationAction(data: {
         .select()
         .single();
 
+      const leadCommUpdates: Record<string, any> = {
+        last_contacted_at: new Date().toISOString(),
+        contact_status: data.clientResponse ? "Responded" : "Contacted – Waiting for Response",
+        updated_at: new Date().toISOString(),
+      };
+      if (shouldAdvanceAction) {
+        leadCommUpdates.next_action = "Follow up on discussion & share quotation";
+      }
+
       await supabase
         .from("leads")
-        .update({
-          last_contacted_at: new Date().toISOString(),
-          contact_status: data.clientResponse ? "Responded" : "Contacted – Waiting for Response",
-          updated_at: new Date().toISOString(),
-        })
+        .update(leadCommUpdates)
         .eq("id", data.leadId);
 
       await recordSupabaseActivity(supabase, {

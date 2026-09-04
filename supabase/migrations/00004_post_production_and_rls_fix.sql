@@ -33,7 +33,7 @@ CREATE POLICY "Allow select on expense categories" ON public.expense_categories
 CREATE POLICY "Allow all on expense categories" ON public.expense_categories
     FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
--- 3. Populate Default Requirement Options
+--   3. Populate Default Requirement Options
 INSERT INTO public.requirement_options (name, slug, category, sort_order)
 VALUES
     ('Traditional Photography', 'traditional_photography', 'Photography', 1),

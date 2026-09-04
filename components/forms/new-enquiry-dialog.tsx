@@ -31,6 +31,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -130,6 +131,8 @@ interface AdditionalEventItem {
   eventEndTime: string;
   location: string;
   notes: string;
+  requirements: string[];
+  otherRequirement: string;
 }
 
 interface NewEnquiryDialogProps {
@@ -201,6 +204,8 @@ export function NewEnquiryDialog({
         eventEndTime: "",
         location: "",
         notes: "",
+        requirements: [],
+        otherRequirement: "",
       },
     ]);
   };
@@ -209,7 +214,7 @@ export function NewEnquiryDialog({
     setAdditionalEvents((prev) => prev.filter((ev) => ev.id !== id));
   };
 
-  const handleUpdateEvent = (id: string, field: keyof AdditionalEventItem, value: string) => {
+  const handleUpdateEvent = (id: string, field: keyof AdditionalEventItem, value: any) => {
     setAdditionalEvents((prev) =>
       prev.map((ev) => (ev.id === id ? { ...ev, [field]: value } : ev))
     );
@@ -237,6 +242,8 @@ export function NewEnquiryDialog({
         eventEndTime?: string;
         location?: string;
         notes?: string;
+        requirements?: string[];
+        otherRequirement?: string;
       }> = [];
 
       // Event 1
@@ -249,6 +256,8 @@ export function NewEnquiryDialog({
           eventEndTime: data.eventEndTime || undefined,
           location: data.location || undefined,
           notes: "Primary Function",
+          requirements: data.requirements || [],
+          otherRequirement: data.otherRequirement || undefined,
         });
       }
 
@@ -263,9 +272,20 @@ export function NewEnquiryDialog({
             eventEndTime: aEv.eventEndTime || undefined,
             location: aEv.location || data.location || undefined,
             notes: aEv.notes || undefined,
+            requirements: aEv.requirements || [],
+            otherRequirement: aEv.otherRequirement || undefined,
           });
         }
       }
+
+      // Combine requirements across all events for the lead-level requirements array
+      const allReqsSet = new Set<string>(data.requirements || []);
+      for (const aEv of additionalEvents) {
+        for (const req of aEv.requirements || []) {
+          allReqsSet.add(req);
+        }
+      }
+      const combinedRequirements = Array.from(allReqsSet);
 
       const res = await createLeadServerAction({
         clientName: data.clientName,
@@ -281,7 +301,7 @@ export function NewEnquiryDialog({
         budget: data.budget ? Number(data.budget) : undefined,
         source: effectiveSource,
         enquiryMessage: data.enquiryMessage || undefined,
-        requirements: data.requirements,
+        requirements: combinedRequirements,
         otherRequirement: data.otherRequirement || undefined,
         profitPercentage: 30,
         events: allEventsPayload,
@@ -387,7 +407,7 @@ export function NewEnquiryDialog({
             </div>
           </div>
 
-          {/* SECTION 2 — Estimated Budget (Separate Section!) */}
+          {/* SECTION 2 — Estimated Budget */}
           <div className="rounded-xl border p-4 bg-muted/20 space-y-3">
             <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
               <IndianRupee className="h-3.5 w-3.5 text-emerald-600" />
@@ -487,6 +507,31 @@ export function NewEnquiryDialog({
                     {...register("location")}
                   />
                 </div>
+
+                {/* Event 1 Deliverables (Right below Event 1) */}
+                <div className="md:col-span-3 pt-3 border-t space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5 text-primary" />
+                      <span>
+                        Event 1 Deliverables ({selectedEventType === "Other" && customEventTypeValue ? customEventTypeValue : selectedEventType})
+                      </span>
+                    </Label>
+                    <Badge variant="outline" className="text-[10px] bg-background">Primary Event</Badge>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Select specific photography, videography, and coverage deliverables for Event 1.
+                  </p>
+                  <RequirementSelector
+                    selectedRequirements={selectedRequirements}
+                    onChange={(reqs) => setValue("requirements", reqs, { shouldValidate: true })}
+                    otherRequirement={otherRequirementValue}
+                    onOtherRequirementChange={(val) =>
+                      setValue("otherRequirement", val, { shouldValidate: true })
+                    }
+                    error={errors.otherRequirement?.message}
+                  />
+                </div>
               </div>
             </div>
 
@@ -573,6 +618,39 @@ export function NewEnquiryDialog({
                       onChange={(e) => handleUpdateEvent(aEv.id, "location", e.target.value)}
                     />
                   </div>
+
+                  {/* Per-Event Requirements */}
+                  <div className="md:col-span-3 pt-2 border-t space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                        <Sparkles className="h-3.5 w-3.5 text-indigo-500" />
+                        <span>Requirements for Event {idx + 2} ({aEv.eventType === "Other" && aEv.customEventType ? aEv.customEventType : aEv.eventType})</span>
+                      </Label>
+                      {selectedRequirements.length > 0 && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            handleUpdateEvent(aEv.id, "requirements", [...selectedRequirements]);
+                            if (otherRequirementValue) {
+                              handleUpdateEvent(aEv.id, "otherRequirement", otherRequirementValue);
+                            }
+                            toast.success(`Copied requirements from Event 1 to Event ${idx + 2}`);
+                          }}
+                          className="h-6 text-[10px] px-2 py-0 border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950"
+                        >
+                          Copy from Event 1
+                        </Button>
+                      )}
+                    </div>
+                    <RequirementSelector
+                      selectedRequirements={aEv.requirements || []}
+                      onChange={(reqs) => handleUpdateEvent(aEv.id, "requirements", reqs)}
+                      otherRequirement={aEv.otherRequirement || ""}
+                      onOtherRequirementChange={(val) => handleUpdateEvent(aEv.id, "otherRequirement", val)}
+                    />
+                  </div>
                 </div>
               </div>
             ))}
@@ -586,7 +664,7 @@ export function NewEnquiryDialog({
                 className="w-full text-xs gap-1 border-dashed py-2"
               >
                 <Plus className="h-3.5 w-3.5" />
-                <span>+ Add Event</span>
+                <span>+ Add Another Event / Ceremony</span>
               </Button>
             </div>
           </div>
@@ -634,28 +712,11 @@ export function NewEnquiryDialog({
             </div>
           </div>
 
-          {/* SECTION 5 — Client Event Requirements */}
-          <div className="rounded-xl border p-4 bg-muted/20 space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-              <Sparkles className="h-3.5 w-3.5 text-primary" />
-              <span>5. Client Event Requirements</span>
-            </h4>
-            <RequirementSelector
-              selectedRequirements={selectedRequirements}
-              onChange={(reqs) => setValue("requirements", reqs, { shouldValidate: true })}
-              otherRequirement={otherRequirementValue}
-              onOtherRequirementChange={(val) =>
-                setValue("otherRequirement", val, { shouldValidate: true })
-              }
-              error={errors.otherRequirement?.message}
-            />
-          </div>
-
-          {/* SECTION 6 — Initial Client Note / Message */}
+          {/* SECTION 5 — Initial Client Note / Message */}
           <div className="rounded-xl border p-4 bg-muted/20 space-y-2">
             <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
               <FileText className="h-3.5 w-3.5 text-primary" />
-              <span>6. Initial Client Note / Message</span>
+              <span>5. Initial Client Note / Message</span>
             </h4>
             <Textarea
               id="enquiryMessage"
